@@ -46,7 +46,7 @@ model SuperStudy {
 
 model Assignment {
   id           String   @id @default(uuid())
-  workerId     String
+  workerId     String?
   superStudyId String
   splitConfig  Json
   status       AssignmentStatus @default(PENDING)
@@ -59,7 +59,7 @@ model Assignment {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   
-  worker       Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  worker       Worker? @relation(fields: [workerId], references: [id], onDelete: Cascade)
   superStudy   SuperStudy @relation(fields: [superStudyId], references: [id], onDelete: Cascade)
   progressEvents ProgressEvent[]
   
