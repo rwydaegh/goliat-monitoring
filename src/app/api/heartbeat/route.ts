@@ -14,32 +14,44 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Find or create worker
-    let worker = await prisma.worker.findUnique({
-      where: { ipAddress: machineId }
-    })
+    try {
+      // Find or create worker
+      let worker = await prisma.worker.findUnique({
+        where: { ipAddress: machineId }
+      })
 
-    if (!worker) {
-      worker = await prisma.worker.create({
+      if (!worker) {
+        worker = await prisma.worker.create({
+          data: {
+            ipAddress: machineId,
+            status: 'IDLE'
+          }
+        })
+      }
+
+      // Update worker's last seen
+      await prisma.worker.update({
+        where: { ipAddress: machineId },
         data: {
-          ipAddress: machineId,
-          status: 'IDLE'
+          lastSeen: new Date()
         }
       })
+
+      return NextResponse.json({ 
+        success: true,
+        timestamp: new Date().toISOString()
+      })
+    } catch (dbError) {
+      console.error('Database error in heartbeat:', dbError)
+      // Return error but log details
+      return NextResponse.json(
+        { 
+          error: 'Database error',
+          details: dbError instanceof Error ? dbError.message : String(dbError)
+        },
+        { status: 500 }
+      )
     }
-
-    // Update worker's last seen
-    await prisma.worker.update({
-      where: { ipAddress: machineId },
-      data: {
-        lastSeen: new Date()
-      }
-    })
-
-    return NextResponse.json({ 
-      success: true,
-      timestamp: new Date().toISOString()
-    })
   } catch (error) {
     console.error('Error updating heartbeat:', error)
     return NextResponse.json(
