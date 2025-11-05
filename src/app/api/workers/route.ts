@@ -21,6 +21,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(workers)
   } catch (error) {
     console.error('Error fetching workers:', error)
+    // Return more detailed error in development
+    if (process.env.NODE_ENV === 'development') {
+      return NextResponse.json(
+        { 
+          error: 'Failed to fetch workers',
+          details: error instanceof Error ? error.message : String(error)
+        },
+        { status: 500 }
+      )
+    }
     return NextResponse.json(
       { error: 'Failed to fetch workers' },
       { status: 500 }
