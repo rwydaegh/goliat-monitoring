@@ -8,12 +8,7 @@ export async function GET(request: NextRequest) {
         lastSeen: 'desc'
       },
       include: {
-        guiState: {
-          orderBy: {
-            updatedAt: 'desc'
-          },
-          take: 1
-        }
+        guiState: true  // This will return an array, but due to unique constraint, there should only be one
       }
     })
 
@@ -39,9 +34,10 @@ export async function GET(request: NextRequest) {
 
     // Return workers with GUI state included
     const updatedWorkers = workers.map(worker => {
+      // Handle guiState as array (even though it should only have one element due to unique constraint)
       const latestGuiState = Array.isArray(worker.guiState) && worker.guiState.length > 0
         ? worker.guiState[0]
-        : null
+        : (worker.guiState as any) || null  // Fallback if it's not an array
       
       return {
         id: worker.id,
@@ -64,19 +60,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(updatedWorkers)
   } catch (error) {
     console.error('Error fetching workers:', error)
-    // Return more detailed error in development
-    if (process.env.NODE_ENV === 'development') {
-      return NextResponse.json(
-        { 
-          error: 'Failed to fetch workers',
-          details: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined
-        },
-        { status: 500 }
-      )
-    }
+    // Return more detailed error in development and production for debugging
     return NextResponse.json(
-      { error: 'Failed to fetch workers' },
+      { 
+        error: 'Failed to fetch workers',
+        details: error instanceof Error ? error.message : String(error),
+        stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     )
   }

@@ -163,8 +163,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error processing GUI update:', error)
+    // Return detailed error for debugging
     return NextResponse.json(
-      { error: 'Failed to process GUI update' },
+      { 
+        error: 'Failed to process GUI update',
+        details: error instanceof Error ? error.message : String(error),
+        stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     )
   }
