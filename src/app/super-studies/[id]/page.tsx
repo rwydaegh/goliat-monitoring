@@ -253,6 +253,9 @@ export default function SuperStudyDetail() {
                       <span className="text-sm text-gray-600">{assignment.progress.toFixed(1)}%</span>
                     </div>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    {assignment.currentStage || '-'}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {assignment.startedAt ? new Date(assignment.startedAt).toLocaleString() : '-'}
                   </td>
