@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Computer, Activity, Clock, CheckCircle, TrendingUp, AlertTriangle, XCircle } from 'lucide-react'
+import { Computer, Activity, Clock, CheckCircle, TrendingUp, AlertTriangle, XCircle, Layers } from 'lucide-react'
 
 interface DashboardStats {
   totalWorkers: number
@@ -163,11 +163,20 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Monitor GOLIAT simulation workers and super studies
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Monitor GOLIAT simulation workers and super studies
+          </p>
+        </div>
+        <Link
+          href="/super-studies"
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <Layers className="h-5 w-5 mr-2" />
+          Super Studies
+        </Link>
       </div>
 
       {/* Stats Cards */}
