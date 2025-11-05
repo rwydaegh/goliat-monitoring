@@ -31,6 +31,8 @@ interface SuperStudy {
   createdAt: string
   updatedAt: string
   assignments: Assignment[]
+  baseConfig?: any
+  baseConfigPath?: string
 }
 
 export default function SuperStudyDetail() {
@@ -128,18 +130,23 @@ export default function SuperStudyDetail() {
         <div className="flex items-center space-x-3">
           <button
             onClick={() => {
-              const jsonStr = JSON.stringify(study, null, 2)
+              if (!study.baseConfig) {
+                alert('Base config not available')
+                return
+              }
+              const jsonStr = JSON.stringify(study.baseConfig, null, 2)
               const blob = new Blob([jsonStr], { type: 'application/json' })
               const url = URL.createObjectURL(blob)
               const a = document.createElement('a')
               a.href = url
-              a.download = `${study.name}_base_config.json`
+              a.download = `${study.name}_master_config.json`
               a.click()
               URL.revokeObjectURL(url)
             }}
             className="px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded hover:bg-gray-700"
+            disabled={!study.baseConfig}
           >
-            View Base Config JSON
+            View Master Config JSON
           </button>
           <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(study.status)}`}>
             {study.status}

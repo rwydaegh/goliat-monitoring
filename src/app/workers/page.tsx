@@ -239,8 +239,11 @@ export default function WorkersPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatLastSeen(worker.lastSeen)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link href={`/workers/${worker.id}`} className="text-blue-600 hover:text-blue-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <Link 
+                        href={`/workers/${worker.id}`} 
+                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                      >
                         View Details
                       </Link>
                     </td>

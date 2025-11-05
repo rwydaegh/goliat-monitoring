@@ -33,7 +33,20 @@ export async function GET(
       )
     }
 
-    return NextResponse.json(superStudy)
+    // Parse baseConfigPath JSON string if it exists
+    let parsedBaseConfig = null
+    if (superStudy.baseConfigPath) {
+      try {
+        parsedBaseConfig = JSON.parse(superStudy.baseConfigPath)
+      } catch (e) {
+        console.error('Error parsing baseConfigPath:', e)
+      }
+    }
+
+    return NextResponse.json({
+      ...superStudy,
+      baseConfig: parsedBaseConfig
+    })
   } catch (error) {
     console.error('Error fetching super study:', error)
     return NextResponse.json(
