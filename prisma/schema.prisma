@@ -17,6 +17,9 @@ model Worker {
   status        WorkerStatus @default(IDLE)
   lastSeen      DateTime @default(now())
   machineLabel  String?
+  gpuName       String?
+  cpuCores      Int?
+  totalRamGB    Float?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   

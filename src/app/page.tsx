@@ -257,13 +257,13 @@ export default function Dashboard() {
               <div className="ml-5 w-0 flex-1">
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Overall Progress</dt>
-                  <dd className="text-lg font-medium text-gray-900">{stats.overallProgress.toFixed(1)}%</dd>
+                  <dd className="text-lg font-medium text-gray-900">{(stats.overallProgress || 0).toFixed(1)}%</dd>
                 </dl>
                 {stats.runningStudies > 0 && (
                   <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
                     <div
                       className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(stats.overallProgress, 100)}%` }}
+                      style={{ width: `${Math.min(stats.overallProgress || 0, 100)}%` }}
                     ></div>
                   </div>
                 )}
@@ -379,9 +379,9 @@ export default function Dashboard() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {worker.guiState ? `${worker.guiState.progress.toFixed(1)}%` : 'N/A'}
+                        {worker.guiState?.progress !== undefined ? `${worker.guiState.progress.toFixed(1)}%` : 'N/A'}
                       </div>
-                      {worker.guiState && worker.guiState.progress > 0 && (
+                      {worker.guiState && worker.guiState.progress !== undefined && worker.guiState.progress > 0 && (
                         <div className="mt-1 w-20 bg-gray-200 rounded-full h-1.5">
                           <div
                             className="bg-blue-600 h-1.5 rounded-full"
