@@ -124,9 +124,26 @@ export default function SuperStudyDetail() {
             <p className="mt-1 text-sm text-gray-600">{study.description}</p>
           )}
         </div>
-        <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(study.status)}`}>
-          {study.status}
-        </span>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => {
+              const jsonStr = JSON.stringify(study, null, 2)
+              const blob = new Blob([jsonStr], { type: 'application/json' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `${study.name}_base_config.json`
+              a.click()
+              URL.revokeObjectURL(url)
+            }}
+            className="px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded hover:bg-gray-700"
+          >
+            View Base Config JSON
+          </button>
+          <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(study.status)}`}>
+            {study.status}
+          </span>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -235,11 +252,12 @@ export default function SuperStudyDetail() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {assignment.currentStage || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {assignment.startedAt ? new Date(assignment.startedAt).toLocaleString() : '-'}
-                  </td>
-                </tr>
-              ))}
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Started At
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
             </tbody>
           </table>
         </div>

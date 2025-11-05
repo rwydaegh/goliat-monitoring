@@ -3,39 +3,48 @@ import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    // Support both machineId (from WebGUIBridge) and ipAddress (backward compatibility)
-    const machineId = body.machineId || body.ipAddress
+      const body = await request.json()
+      // Support both machineId (from WebGUIBridge) and ipAddress (backward compatibility)
+      const machineId = body.machineId || body.ipAddress
+      const { gpuName, cpuCores, totalRamGB, hostname } = body
 
-    if (!machineId) {
-      return NextResponse.json(
-        { error: 'machineId is required' },
-        { status: 400 }
-      )
-    }
-
-    try {
-      // Find or create worker
-      let worker = await prisma.worker.findUnique({
-        where: { ipAddress: machineId }
-      })
-
-      if (!worker) {
-        worker = await prisma.worker.create({
-          data: {
-            ipAddress: machineId,
-            status: 'IDLE'
-          }
-        })
+      if (!machineId) {
+        return NextResponse.json(
+          { error: 'machineId is required' },
+          { status: 400 }
+        )
       }
 
-      // Update worker's last seen
-      await prisma.worker.update({
-        where: { ipAddress: machineId },
-        data: {
-          lastSeen: new Date()
+      try {
+        // Find or create worker
+        let worker = await prisma.worker.findUnique({
+          where: { ipAddress: machineId }
+        })
+
+        if (!worker) {
+          worker = await prisma.worker.create({
+            data: {
+              ipAddress: machineId,
+              hostname: hostname || null,
+              gpuName: gpuName || null,
+              cpuCores: cpuCores || null,
+              totalRamGB: totalRamGB || null,
+              status: 'IDLE'
+            }
+          })
+        } else {
+          // Update worker with system info
+          await prisma.worker.update({
+            where: { ipAddress: machineId },
+            data: {
+              lastSeen: new Date(),
+              hostname: hostname || worker.hostname,
+              gpuName: gpuName || worker.gpuName,
+              cpuCores: cpuCores !== undefined ? cpuCores : worker.cpuCores,
+              totalRamGB: totalRamGB !== undefined ? totalRamGB : worker.totalRamGB
+            }
+          })
         }
-      })
 
       return NextResponse.json({ 
         success: true,

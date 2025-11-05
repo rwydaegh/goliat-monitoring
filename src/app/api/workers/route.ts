@@ -51,6 +51,9 @@ export async function GET(request: NextRequest) {
         status: worker.status === 'RUNNING' && worker.lastSeen < fifteenSecondsAgo ? 'IDLE' : worker.status,
         lastSeen: worker.lastSeen,
         machineLabel: worker.machineLabel,
+        gpuName: worker.gpuName,
+        cpuCores: worker.cpuCores,
+        totalRamGB: worker.totalRamGB,
         createdAt: worker.createdAt,
         updatedAt: worker.updatedAt,
         guiState: latestGuiState ? {
@@ -58,7 +61,8 @@ export async function GET(request: NextRequest) {
           stageProgress: latestGuiState.stageProgress || 0,
           stage: latestGuiState.stage,
           warningCount: latestGuiState.warningCount || 0,
-          errorCount: latestGuiState.errorCount || 0
+          errorCount: latestGuiState.errorCount || 0,
+          eta: latestGuiState.eta
         } : null
       }
     })

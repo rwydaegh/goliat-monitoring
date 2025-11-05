@@ -21,12 +21,16 @@ interface Worker {
   status: string
   lastSeen: string
   machineLabel?: string
+  gpuName?: string
+  cpuCores?: number
+  totalRamGB?: number
   guiState?: {
     progress: number
     stageProgress?: number
     stage: string
     warningCount?: number
     errorCount?: number
+    eta?: string
   }
 }
 
@@ -345,7 +349,7 @@ export default function Dashboard() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {workers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-4 text-center text-sm text-gray-500">
+                    <td colSpan={9} className="px-6 py-4 text-center text-sm text-gray-500">
                       No workers registered yet. Start a GOLIAT study with web monitoring enabled to see workers here.
                     </td>
                   </tr>
@@ -361,10 +365,16 @@ export default function Dashboard() {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">
-                            {worker.machineLabel || worker.hostname || 'Unknown'}
+                            {worker.gpuName && worker.gpuName !== 'N/A' 
+                              ? worker.gpuName 
+                              : (worker.machineLabel || worker.hostname || 'Unknown')}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {worker.hostname || 'No hostname'}
+                            {worker.gpuName && worker.gpuName !== 'N/A' && worker.hostname 
+                              ? `Hostname: ${worker.hostname}` 
+                              : (worker.hostname || 'No hostname')}
+                            {worker.cpuCores && ` • ${worker.cpuCores} cores`}
+                            {worker.totalRamGB && ` • ${worker.totalRamGB.toFixed(1)} GB RAM`}
                           </div>
                         </div>
                       </div>
@@ -389,6 +399,19 @@ export default function Dashboard() {
                           ></div>
                         </div>
                       )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {worker.guiState?.eta ? (() => {
+                        const now = new Date().getTime()
+                        const etaTime = new Date(worker.guiState.eta).getTime()
+                        const remainingMs = Math.max(0, etaTime - now)
+                        const hours = Math.floor(remainingMs / 3600000)
+                        const minutes = Math.floor((remainingMs % 3600000) / 60000)
+                        const seconds = Math.floor((remainingMs % 60000) / 1000)
+                        if (hours > 0) return `${hours}h ${minutes}m`
+                        if (minutes > 0) return `${minutes}m ${seconds}s`
+                        return `${seconds}s`
+                      })() : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-yellow-600 font-medium">

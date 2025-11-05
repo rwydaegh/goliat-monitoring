@@ -132,10 +132,52 @@ export async function POST(request: NextRequest) {
       updateData.errorCount = errorCount
     }
 
-    // Handle profiler_update (ETA)
-    if (messageType === 'profiler_update' && message.eta_seconds !== undefined) {
-      const etaDate = new Date(Date.now() + message.eta_seconds * 1000)
-      updateData.eta = etaDate
+    // Handle finished message - mark assignment as completed
+    if (messageType === 'finished') {
+      try {
+        const activeAssignment = await prisma.assignment.findFirst({
+          where: {
+            workerId: worker.id,
+            status: 'RUNNING'
+          }
+        })
+
+        if (activeAssignment) {
+          await prisma.assignment.update({
+            where: { id: activeAssignment.id },
+            data: {
+              status: 'COMPLETED',
+              completedAt: new Date(),
+              progress: 100
+            }
+          })
+
+          // Update super study progress
+          const superStudy = await prisma.superStudy.findUnique({
+            where: { id: activeAssignment.superStudyId },
+            include: {
+              assignments: true
+            }
+          })
+
+          if (superStudy) {
+            const completedCount = superStudy.assignments.filter(a => a.status === 'COMPLETED').length
+            const totalAssignments = superStudy.totalAssignments
+            const masterProgress = totalAssignments > 0 ? (completedCount / totalAssignments) * 100 : 0
+
+            await prisma.superStudy.update({
+              where: { id: superStudy.id },
+              data: {
+                completedAssignments: completedCount,
+                masterProgress: masterProgress,
+                status: completedCount === totalAssignments ? 'COMPLETED' : 'RUNNING'
+              }
+            })
+          }
+        }
+      } catch (assignmentError) {
+        console.warn('Failed to mark assignment as completed:', assignmentError)
+      }
     }
 
     // Update GUI state
@@ -143,6 +185,57 @@ export async function POST(request: NextRequest) {
       where: { workerId: worker.id },
       data: updateData
     })
+
+    // Also update assignment progress if worker has an active assignment
+    try {
+      const activeAssignment = await prisma.assignment.findFirst({
+        where: {
+          workerId: worker.id,
+          status: 'RUNNING'
+        }
+      })
+
+      if (activeAssignment) {
+        // Update assignment progress based on GUI state
+        const newProgress = updateData.progress !== undefined ? updateData.progress : guiState.progress
+        const newStage = updateData.stage !== undefined ? updateData.stage : guiState.stage
+
+        await prisma.assignment.update({
+          where: { id: activeAssignment.id },
+          data: {
+            progress: newProgress,
+            currentStage: newStage || activeAssignment.currentStage,
+            eta: updateData.eta || activeAssignment.eta
+          }
+        })
+
+        // Update super study progress
+        const superStudy = await prisma.superStudy.findUnique({
+          where: { id: activeAssignment.superStudyId },
+          include: {
+            assignments: true
+          }
+        })
+
+        if (superStudy) {
+          const completedCount = superStudy.assignments.filter(a => a.status === 'COMPLETED').length
+          const totalAssignments = superStudy.totalAssignments
+          const masterProgress = totalAssignments > 0 ? (completedCount / totalAssignments) * 100 : 0
+
+          await prisma.superStudy.update({
+            where: { id: superStudy.id },
+            data: {
+              completedAssignments: completedCount,
+              masterProgress: masterProgress,
+              status: completedCount === totalAssignments ? 'COMPLETED' : 'RUNNING'
+            }
+          })
+        }
+      }
+    } catch (assignmentError) {
+      // Log but don't fail the request if assignment update fails
+      console.warn('Failed to update assignment progress:', assignmentError)
+    }
 
     // Also create a progress event for tracking (optional - don't fail if this fails)
     try {
