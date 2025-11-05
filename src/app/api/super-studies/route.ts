@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+// API routes for managing super studies
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
