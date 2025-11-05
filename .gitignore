@@ -28,7 +28,7 @@ dist/
 Thumbs.db
 
 # Database
-prisma/migrations/
+# prisma/migrations - migrations should be committed/
 
 # Logs
 logs
