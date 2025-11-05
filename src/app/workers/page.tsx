@@ -1,15 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
 import { Computer, Activity, Clock, CheckCircle } from 'lucide-react'
-
-interface DashboardStats {
-  totalWorkers: number
-  onlineWorkers: number
-  runningStudies: number
-  completedToday: number
-}
+import Link from 'next/link'
 
 interface Worker {
   id: string
@@ -20,13 +13,7 @@ interface Worker {
   machineLabel?: string
 }
 
-export default function Dashboard() {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalWorkers: 0,
-    onlineWorkers: 0,
-    runningStudies: 0,
-    completedToday: 0
-  })
+export default function WorkersPage() {
   const [workers, setWorkers] = useState<Worker[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -39,32 +26,16 @@ export default function Dashboard() {
         }
         const workersData = await response.json()
         
-        // Calculate stats from actual workers
-        const totalWorkers = workersData.length
-        const onlineWorkers = workersData.filter((w: any) => 
-          w.status === 'IDLE' || w.status === 'RUNNING'
-        ).length
-        const runningStudies = workersData.filter((w: any) => 
-          w.status === 'RUNNING'
-        ).length
-        
-        // Transform Prisma worker data to match our interface
         const transformedWorkers = workersData.map((w: any) => ({
           id: w.id,
           ipAddress: w.ipAddress,
           hostname: w.hostname || undefined,
-          status: w.status, // Keep original case (IDLE, RUNNING, OFFLINE, ERROR)
+          status: w.status,
           lastSeen: w.lastSeen,
           machineLabel: w.machineLabel || undefined
         }))
         
         setWorkers(transformedWorkers)
-        setStats({
-          totalWorkers,
-          onlineWorkers,
-          runningStudies,
-          completedToday: 0 // TODO: Calculate from assignments
-        })
         setLoading(false)
       } catch (error) {
         console.error('Error fetching workers:', error)
@@ -111,9 +82,11 @@ export default function Dashboard() {
     const now = new Date()
     const lastSeenTime = new Date(lastSeen)
     const diffMs = now.getTime() - lastSeenTime.getTime()
-    const diffMins = Math.floor(diffMs / (1000 * 60))
+    const diffSecs = Math.floor(diffMs / 1000)
     
-    if (diffMins < 1) return 'Just now'
+    if (diffSecs < 30) return 'Just now'
+    if (diffSecs < 60) return `${diffSecs}s ago`
+    const diffMins = Math.floor(diffSecs / 60)
     if (diffMins < 60) return `${diffMins}m ago`
     const diffHours = Math.floor(diffMins / 60)
     return `${diffHours}h ago`
@@ -129,88 +102,15 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Welcome Section */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Workers</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Monitor GOLIAT simulation workers and super studies across TensorDock VMs
+          Monitor all registered GOLIAT simulation workers
         </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <Computer className="h-6 w-6 text-gray-400" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Total Workers</dt>
-                  <dd className="text-lg font-medium text-gray-900">{stats.totalWorkers}</dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <Activity className="h-6 w-6 text-green-400" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Online Workers</dt>
-                  <dd className="text-lg font-medium text-gray-900">{stats.onlineWorkers}</dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <Clock className="h-6 w-6 text-blue-400" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Running Studies</dt>
-                  <dd className="text-lg font-medium text-gray-900">{stats.runningStudies}</dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <CheckCircle className="h-6 w-6 text-green-400" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Completed Today</dt>
-                  <dd className="text-lg font-medium text-gray-900">{stats.completedToday}</dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Workers Section */}
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-            Worker Status
-          </h3>
-          
           <div className="overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -283,26 +183,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-
-      {/* Quick Actions */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-            Quick Actions
-          </h3>
-          <div className="space-y-3 sm:space-y-0 sm:flex sm:space-x-4">
-            <button className="btn-primary w-full sm:w-auto">
-              Create Super Study
-            </button>
-            <button className="btn-secondary w-full sm:w-auto">
-              Refresh Worker Status
-            </button>
-            <button className="btn-secondary w-full sm:w-auto">
-              View All Studies
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
+

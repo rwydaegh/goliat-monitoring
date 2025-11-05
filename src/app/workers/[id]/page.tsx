@@ -1,0 +1,260 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { Computer, Activity, Clock, ArrowLeft } from 'lucide-react'
+
+interface Worker {
+  id: string
+  ipAddress: string
+  hostname?: string
+  status: string
+  lastSeen: string
+  machineLabel?: string
+}
+
+interface GuiState {
+  id: string
+  workerId: string
+  stage: string
+  progress: number
+  logMessages: any[]
+  eta: string | null
+  status: string
+  updatedAt: string
+}
+
+export default function WorkerDetail() {
+  const params = useParams()
+  const router = useRouter()
+  const workerId = params.id as string
+  
+  const [worker, setWorker] = useState<Worker | null>(null)
+  const [guiState, setGuiState] = useState<GuiState | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchWorkerDetails = async () => {
+      try {
+        const response = await fetch(`/api/workers/${workerId}`)
+        if (!response.ok) {
+          if (response.status === 404) {
+            setError('Worker not found')
+          } else {
+            setError('Failed to fetch worker details')
+          }
+          setLoading(false)
+          return
+        }
+        
+        const data = await response.json()
+        setWorker(data.worker)
+        setGuiState(data.guiState)
+        setLoading(false)
+      } catch (error) {
+        console.error('Error fetching worker details:', error)
+        setError('Failed to fetch worker details')
+        setLoading(false)
+      }
+    }
+
+    if (workerId) {
+      fetchWorkerDetails()
+      
+      // Poll for updates every 2 seconds
+      const interval = setInterval(fetchWorkerDetails, 2000)
+      return () => clearInterval(interval)
+    }
+  }, [workerId])
+
+  const getStatusColor = (status: string) => {
+    const statusLower = status.toLowerCase()
+    switch (statusLower) {
+      case 'idle':
+      case 'online': 
+        return 'status-online'
+      case 'running': 
+        return 'bg-blue-100 text-blue-800'
+      case 'offline': 
+        return 'status-offline'
+      case 'error':
+        return 'bg-red-100 text-red-800'
+      default: 
+        return 'status-idle'
+    }
+  }
+
+  const formatLastSeen = (lastSeen: string) => {
+    const now = new Date()
+    const lastSeenTime = new Date(lastSeen)
+    const diffMs = now.getTime() - lastSeenTime.getTime()
+    const diffSecs = Math.floor(diffMs / 1000)
+    
+    if (diffSecs < 30) return 'Just now'
+    if (diffSecs < 60) return `${diffSecs}s ago`
+    const diffMins = Math.floor(diffSecs / 60)
+    if (diffMins < 60) return `${diffMins}m ago`
+    const diffHours = Math.floor(diffMins / 60)
+    return `${diffHours}h ago`
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (error || !worker) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600 mb-4">{error || 'Worker not found'}</p>
+        <button
+          onClick={() => router.push('/')}
+          className="text-blue-600 hover:text-blue-900"
+        >
+          ← Back to Dashboard
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <button
+            onClick={() => router.push('/')}
+            className="flex items-center text-gray-600 hover:text-gray-900 mb-2"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {worker.machineLabel || worker.hostname || worker.ipAddress}
+          </h1>
+          <p className="text-sm text-gray-600 mt-1">IP: {worker.ipAddress}</p>
+        </div>
+        <div className="text-right">
+          <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(worker.status)}`}>
+            {worker.status.toLowerCase()}
+          </div>
+          <p className="text-sm text-gray-500 mt-2">Last seen: {formatLastSeen(worker.lastSeen)}</p>
+        </div>
+      </div>
+
+      {/* Progress Section */}
+      {guiState && (
+        <div className="bg-white shadow rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Progress</h2>
+          
+          {/* Overall Progress */}
+          <div className="mb-6">
+            <div className="flex justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Overall Progress</span>
+              <span className="text-sm text-gray-600">{guiState.progress.toFixed(1)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-4">
+              <div
+                className="bg-blue-600 h-4 rounded-full transition-all duration-300"
+                style={{ width: `${guiState.progress}%` }}
+              ></div>
+            </div>
+          </div>
+
+          {/* Stage Progress */}
+          <div className="mb-6">
+            <div className="flex justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Current Stage</span>
+              <span className="text-sm text-gray-600">{guiState.stage || 'N/A'}</span>
+            </div>
+            {guiState.stage && (
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div
+                  className="bg-green-600 h-3 rounded-full transition-all duration-300"
+                  style={{ width: `${guiState.progress}%` }}
+                ></div>
+              </div>
+            )}
+          </div>
+
+          {/* ETA */}
+          {guiState.eta && (
+            <div className="flex items-center text-gray-600">
+              <Clock className="h-4 w-4 mr-2" />
+              <span className="text-sm">
+                Estimated completion: {new Date(guiState.eta).toLocaleString()}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Log Messages */}
+      {guiState && guiState.logMessages && guiState.logMessages.length > 0 && (
+        <div className="bg-white shadow rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Logs</h2>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {guiState.logMessages.slice(-50).reverse().map((log: any, idx: number) => {
+              const logType = log.logType || 'default'
+              const colorClass = 
+                logType === 'success' ? 'text-green-600' :
+                logType === 'warning' ? 'text-yellow-600' :
+                logType === 'error' || logType === 'fatal' ? 'text-red-600' :
+                'text-gray-600'
+              
+              return (
+                <div key={idx} className={`text-sm ${colorClass} font-mono`}>
+                  <span className="text-gray-400 text-xs">
+                    {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : ''}
+                  </span>
+                  {' '}
+                  {log.message}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Worker Info */}
+      <div className="bg-white shadow rounded-lg p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Worker Information</h2>
+        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <dt className="text-sm font-medium text-gray-500">IP Address</dt>
+            <dd className="mt-1 text-sm text-gray-900">{worker.ipAddress}</dd>
+          </div>
+          {worker.hostname && (
+            <div>
+              <dt className="text-sm font-medium text-gray-500">Hostname</dt>
+              <dd className="mt-1 text-sm text-gray-900">{worker.hostname}</dd>
+            </div>
+          )}
+          {worker.machineLabel && (
+            <div>
+              <dt className="text-sm font-medium text-gray-500">Machine Label</dt>
+              <dd className="mt-1 text-sm text-gray-900">{worker.machineLabel}</dd>
+            </div>
+          )}
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Status</dt>
+            <dd className="mt-1">
+              <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getStatusColor(worker.status)}`}>
+                {worker.status.toLowerCase()}
+              </span>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Last Seen</dt>
+            <dd className="mt-1 text-sm text-gray-900">{formatLastSeen(worker.lastSeen)}</dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  )
+}
+
