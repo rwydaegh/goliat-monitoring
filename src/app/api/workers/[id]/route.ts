@@ -54,6 +54,9 @@ export async function GET(
         status: workerStatus,
         lastSeen: worker.lastSeen,
         machineLabel: worker.machineLabel,
+        gpuName: worker.gpuName,
+        cpuCores: worker.cpuCores,
+        totalRamGB: worker.totalRamGB,
         createdAt: worker.createdAt
       },
       guiState: latestGuiState ? {

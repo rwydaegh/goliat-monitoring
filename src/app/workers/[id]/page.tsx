@@ -11,6 +11,9 @@ interface Worker {
   status: string
   lastSeen: string
   machineLabel?: string
+  gpuName?: string
+  cpuCores?: number
+  totalRamGB?: number
   createdAt?: string
 }
 
@@ -316,6 +319,24 @@ export default function WorkerDetail() {
             <div>
               <dt className="text-sm font-medium text-gray-500">Machine Label</dt>
               <dd className="mt-1 text-sm text-gray-900">{worker.machineLabel}</dd>
+            </div>
+          )}
+          {worker.gpuName && worker.gpuName !== 'N/A' && (
+            <div>
+              <dt className="text-sm font-medium text-gray-500">GPU</dt>
+              <dd className="mt-1 text-sm text-gray-900">{worker.gpuName}</dd>
+            </div>
+          )}
+          {worker.cpuCores && (
+            <div>
+              <dt className="text-sm font-medium text-gray-500">CPU Cores</dt>
+              <dd className="mt-1 text-sm text-gray-900">{worker.cpuCores}</dd>
+            </div>
+          )}
+          {worker.totalRamGB && (
+            <div>
+              <dt className="text-sm font-medium text-gray-500">Total RAM</dt>
+              <dd className="mt-1 text-sm text-gray-900">{worker.totalRamGB.toFixed(1)} GB</dd>
             </div>
           )}
           <div>
