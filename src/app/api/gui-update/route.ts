@@ -68,7 +68,9 @@ export async function POST(request: NextRequest) {
           stage: '',
           progress: 0,
           logMessages: [],
-          status: 'IDLE'
+          status: 'IDLE',
+          warningCount: 0,
+          errorCount: 0
         }
       })
     }
@@ -172,11 +174,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         error: 'Failed to process GUI update',
-        details: error instanceof Error ? error.message : String(error),
-        stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
+        details: error instanceof Error ? error.message : String(error)
       },
       { status: 500 }
     )
   }
 }
-

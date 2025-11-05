@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
+
+type WorkerWithGuiState = Prisma.WorkerGetPayload<{
+  include: { guiState: true }
+}>
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,14 +21,14 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const fifteenSecondsAgo = new Date(now.getTime() - 15 * 1000)
     
-    const staleWorkers = workers.filter(worker => 
+    const staleWorkers = workers.filter((worker: WorkerWithGuiState) => 
       worker.status === 'RUNNING' && worker.lastSeen < fifteenSecondsAgo
     )
 
     // Update stale workers in database
     if (staleWorkers.length > 0) {
       await Promise.all(
-        staleWorkers.map(worker =>
+        staleWorkers.map((worker: WorkerWithGuiState) =>
           prisma.worker.update({
             where: { id: worker.id },
             data: { status: 'IDLE' }
@@ -33,7 +38,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Return workers with GUI state included
-    const updatedWorkers = workers.map(worker => {
+    const updatedWorkers = workers.map((worker: WorkerWithGuiState) => {
       // Handle guiState as array (even though it should only have one element due to unique constraint)
       const latestGuiState = Array.isArray(worker.guiState) && worker.guiState.length > 0
         ? worker.guiState[0]
@@ -64,8 +69,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { 
         error: 'Failed to fetch workers',
-        details: error instanceof Error ? error.message : String(error),
-        stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
+        details: error instanceof Error ? error.message : String(error)
       },
       { status: 500 }
     )
