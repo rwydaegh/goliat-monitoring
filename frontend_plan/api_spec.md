@@ -2,9 +2,9 @@
 
 ## Base URL
 
-All endpoints are relative to the Vercel deployment URL:
+All endpoints are relative to the Railway deployment URL:
 - Development: `http://localhost:3000`
-- Production: `https://goliat-monitoring.vercel.app`
+- Production: `https://your-app.railway.app`
 
 ## Authentication
 

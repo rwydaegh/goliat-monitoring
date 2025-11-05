@@ -30,58 +30,79 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // TODO: Replace with actual API calls
-    setTimeout(() => {
-      setStats({
-        totalWorkers: 4,
-        onlineWorkers: 3,
-        runningStudies: 2,
-        completedToday: 5
-      })
-      setWorkers([
-        {
-          id: '1',
-          ipAddress: '192.168.1.10',
-          hostname: 'worker-01',
-          status: 'online',
-          lastSeen: new Date().toISOString(),
-          machineLabel: 'TensorDock-VM-01'
-        },
-        {
-          id: '2',
-          ipAddress: '192.168.1.11',
-          hostname: 'worker-02',
-          status: 'running',
-          lastSeen: new Date().toISOString(),
-          machineLabel: 'TensorDock-VM-02'
-        },
-        {
-          id: '3',
-          ipAddress: '192.168.1.12',
-          hostname: 'worker-03',
-          status: 'online',
-          lastSeen: new Date().toISOString(),
-          machineLabel: 'TensorDock-VM-03'
-        },
-        {
-          id: '4',
-          ipAddress: '192.168.1.13',
-          hostname: 'worker-04',
-          status: 'offline',
-          lastSeen: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-          machineLabel: 'TensorDock-VM-04'
+    const fetchWorkers = async () => {
+      try {
+        const response = await fetch('/api/workers')
+        if (!response.ok) {
+          throw new Error('Failed to fetch workers')
         }
-      ])
-      setLoading(false)
-    }, 1000)
+        const workersData = await response.json()
+        
+        // Calculate stats from actual workers
+        const totalWorkers = workersData.length
+        const onlineWorkers = workersData.filter((w: any) => 
+          w.status === 'IDLE' || w.status === 'RUNNING'
+        ).length
+        const runningStudies = workersData.filter((w: any) => 
+          w.status === 'RUNNING'
+        ).length
+        
+        // Transform Prisma worker data to match our interface
+        const transformedWorkers = workersData.map((w: any) => ({
+          id: w.id,
+          ipAddress: w.ipAddress,
+          hostname: w.hostname || undefined,
+          status: w.status, // Keep original case (IDLE, RUNNING, OFFLINE, ERROR)
+          lastSeen: w.lastSeen,
+          machineLabel: w.machineLabel || undefined
+        }))
+        
+        setWorkers(transformedWorkers)
+        setStats({
+          totalWorkers,
+          onlineWorkers,
+          runningStudies,
+          completedToday: 0 // TODO: Calculate from assignments
+        })
+        setLoading(false)
+      } catch (error) {
+        console.error('Error fetching workers:', error)
+        setLoading(false)
+      }
+    }
+
+    fetchWorkers()
+    
+    // Poll for updates every 3 seconds
+    const interval = setInterval(fetchWorkers, 3000)
+    return () => clearInterval(interval)
   }, [])
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'status-online'
-      case 'running': return 'bg-blue-100 text-blue-800'
-      case 'offline': return 'status-offline'
-      default: return 'status-idle'
+    const statusLower = status.toLowerCase()
+    switch (statusLower) {
+      case 'idle':
+      case 'online': 
+        return 'status-online'
+      case 'running': 
+        return 'bg-blue-100 text-blue-800'
+      case 'offline': 
+        return 'status-offline'
+      case 'error':
+        return 'bg-red-100 text-red-800'
+      default: 
+        return 'status-idle'
+    }
+  }
+  
+  const getStatusDisplay = (status: string) => {
+    const statusLower = status.toLowerCase()
+    switch (statusLower) {
+      case 'idle': return 'idle'
+      case 'running': return 'running'
+      case 'offline': return 'offline'
+      case 'error': return 'error'
+      default: return statusLower
     }
   }
 
@@ -211,7 +232,14 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {workers.map((worker) => (
+                {workers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
+                      No workers registered yet. Start a GOLIAT study with web monitoring enabled to see workers here.
+                    </td>
+                  </tr>
+                ) : (
+                  workers.map((worker) => (
                   <tr key={worker.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -235,7 +263,7 @@ export default function Dashboard() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`status-indicator ${getStatusColor(worker.status)}`}>
-                        {worker.status}
+                        {getStatusDisplay(worker.status)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -247,7 +275,8 @@ export default function Dashboard() {
                       </a>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>

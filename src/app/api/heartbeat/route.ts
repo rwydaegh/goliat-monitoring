@@ -4,61 +4,42 @@ import { prisma } from '@/lib/prisma'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { ipAddress, status, stage, progress, eta } = body
+    // Support both machineId (from WebGUIBridge) and ipAddress (backward compatibility)
+    const machineId = body.machineId || body.ipAddress
 
-    if (!ipAddress) {
+    if (!machineId) {
       return NextResponse.json(
-        { error: 'IP address is required' },
+        { error: 'machineId is required' },
         { status: 400 }
       )
     }
 
     // Find or create worker
     let worker = await prisma.worker.findUnique({
-      where: { ipAddress }
+      where: { ipAddress: machineId }
     })
 
     if (!worker) {
       worker = await prisma.worker.create({
         data: {
-          ipAddress,
-          status: status || 'IDLE'
+          ipAddress: machineId,
+          status: 'IDLE'
         }
       })
     }
 
-    // Update worker's last seen and status
+    // Update worker's last seen
     await prisma.worker.update({
-      where: { ipAddress },
+      where: { ipAddress: machineId },
       data: {
-        status: status || 'IDLE',
         lastSeen: new Date()
       }
     })
 
-    // Update GUI state if provided
-    if (stage !== undefined && progress !== undefined) {
-      await prisma.guiState.upsert({
-        where: { workerId: worker.id },
-        update: {
-          stage: stage || '',
-          progress: progress || 0,
-          eta: eta ? new Date(eta) : null,
-          status: status || 'IDLE',
-          updatedAt: new Date()
-        },
-        create: {
-          workerId: worker.id,
-          stage: stage || '',
-          progress: progress || 0,
-          eta: eta ? new Date(eta) : null,
-          status: status || 'IDLE',
-          logMessages: []
-        }
-      })
-    }
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ 
+      success: true,
+      timestamp: new Date().toISOString()
+    })
   } catch (error) {
     console.error('Error updating heartbeat:', error)
     return NextResponse.json(
