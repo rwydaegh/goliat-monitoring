@@ -11,6 +11,7 @@ interface Worker {
   status: string
   lastSeen: string
   machineLabel?: string
+  createdAt?: string
 }
 
 interface GuiState {
@@ -197,15 +198,51 @@ export default function WorkerDetail() {
             )}
           </div>
 
-          {/* ETA */}
-          {guiState.eta && (
+          {/* Time Information */}
+          <div className="space-y-2 mb-4">
+            {guiState.eta && (
+              <>
+                <div className="flex items-center text-gray-600">
+                  <Clock className="h-4 w-4 mr-2" />
+                  <span className="text-sm">
+                    Estimated completion: {new Date(guiState.eta).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center text-gray-600">
+                  <Clock className="h-4 w-4 mr-2" />
+                  <span className="text-sm">
+                    Time remaining: {(() => {
+                      const now = new Date().getTime()
+                      const etaTime = new Date(guiState.eta).getTime()
+                      const remainingMs = Math.max(0, etaTime - now)
+                      const hours = Math.floor(remainingMs / 3600000)
+                      const minutes = Math.floor((remainingMs % 3600000) / 60000)
+                      const seconds = Math.floor((remainingMs % 60000) / 1000)
+                      if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`
+                      if (minutes > 0) return `${minutes}m ${seconds}s`
+                      return `${seconds}s`
+                    })()}
+                  </span>
+                </div>
+              </>
+            )}
             <div className="flex items-center text-gray-600">
               <Clock className="h-4 w-4 mr-2" />
               <span className="text-sm">
-                Estimated completion: {new Date(guiState.eta).toLocaleString()}
+                Time elapsed: {(() => {
+                  const now = new Date().getTime()
+                  const createdTime = new Date(worker.createdAt || worker.lastSeen).getTime()
+                  const elapsedMs = now - createdTime
+                  const hours = Math.floor(elapsedMs / 3600000)
+                  const minutes = Math.floor((elapsedMs % 3600000) / 60000)
+                  const seconds = Math.floor((elapsedMs % 60000) / 1000)
+                  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`
+                  if (minutes > 0) return `${minutes}m ${seconds}s`
+                  return `${seconds}s`
+                })()}
               </span>
             </div>
-          )}
+          </div>
 
           {/* Warnings and Errors */}
           <div className="mt-6 pt-6 border-t border-gray-200">

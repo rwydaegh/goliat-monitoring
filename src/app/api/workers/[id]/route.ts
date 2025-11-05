@@ -53,7 +53,8 @@ export async function GET(
         hostname: worker.hostname,
         status: workerStatus,
         lastSeen: worker.lastSeen,
-        machineLabel: worker.machineLabel
+        machineLabel: worker.machineLabel,
+        createdAt: worker.createdAt
       },
       guiState: latestGuiState ? {
         id: latestGuiState.id,
