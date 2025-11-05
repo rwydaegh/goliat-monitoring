@@ -142,23 +142,28 @@ export async function POST(request: NextRequest) {
       data: updateData
     })
 
-    // Also create a progress event for tracking
-    await prisma.progressEvent.create({
-      data: {
-        workerId: worker.id,
-        eventType: messageType === 'overall_progress' ? 'PROGRESS' :
-                   messageType === 'stage_progress' ? 'STAGE_CHANGE' :
-                   messageType === 'status' ? 'LOG' :
-                   messageType === 'finished' ? 'FINISHED' :
-                   messageType === 'fatal_error' ? 'ERROR' :
-                   messageType === 'profiler_update' ? 'ETA_UPDATE' : 'LOG',
-        message: message.message || JSON.stringify(message),
-        stage: message.name || updateData.stage || guiState.stage,
-        progress: updateData.progress !== undefined ? updateData.progress : guiState.progress,
-        eta: updateData.eta || guiState.eta,
-        data: message
-      }
-    })
+    // Also create a progress event for tracking (optional - don't fail if this fails)
+    try {
+      await prisma.progressEvent.create({
+        data: {
+          workerId: worker.id,
+          eventType: messageType === 'overall_progress' ? 'PROGRESS' :
+                     messageType === 'stage_progress' ? 'STAGE_CHANGE' :
+                     messageType === 'status' ? 'LOG' :
+                     messageType === 'finished' ? 'FINISHED' :
+                     messageType === 'fatal_error' ? 'ERROR' :
+                     messageType === 'profiler_update' ? 'ETA_UPDATE' : 'LOG',
+          message: message.message || JSON.stringify(message).substring(0, 500), // Limit message length
+          stage: message.name || updateData.stage || guiState.stage,
+          progress: updateData.progress !== undefined ? updateData.progress : guiState.progress,
+          eta: updateData.eta || guiState.eta,
+          data: message
+        }
+      })
+    } catch (eventError) {
+      // Log but don't fail the request if progress event creation fails
+      console.warn('Failed to create progress event:', eventError)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
