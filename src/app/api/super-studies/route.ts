@@ -1,6 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Super study ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Delete super study and all its assignments (cascade delete)
+    await prisma.superStudy.delete({
+      where: { id }
+    })
+
+    return NextResponse.json({ success: true, message: 'Super study deleted successfully' })
+  } catch (error) {
+    console.error('Error deleting super study:', error)
+    return NextResponse.json(
+      {
+        error: 'Failed to delete super study',
+        details: error instanceof Error ? error.message : String(error)
+      },
+      { status: 500 }
+    )
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
