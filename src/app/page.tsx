@@ -21,6 +21,13 @@ interface Worker {
   status: string
   lastSeen: string
   machineLabel?: string
+  guiState?: {
+    progress: number
+    stageProgress?: number
+    stage: string
+    warningCount?: number
+    errorCount?: number
+  }
 }
 
 export default function Dashboard() {
@@ -159,7 +166,7 @@ export default function Dashboard() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Monitor GOLIAT simulation workers and super studies across TensorDock VMs
+          Monitor GOLIAT simulation workers and super studies
         </p>
       </div>
 
@@ -310,6 +317,15 @@ export default function Dashboard() {
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Progress
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Warnings
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Errors
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Last Seen
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -320,7 +336,7 @@ export default function Dashboard() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {workers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
+                    <td colSpan={8} className="px-6 py-4 text-center text-sm text-gray-500">
                       No workers registered yet. Start a GOLIAT study with web monitoring enabled to see workers here.
                     </td>
                   </tr>
@@ -351,6 +367,29 @@ export default function Dashboard() {
                       <span className={`status-indicator ${getStatusColor(worker.status)}`}>
                         {getStatusDisplay(worker.status)}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {worker.guiState ? `${worker.guiState.progress.toFixed(1)}%` : 'N/A'}
+                      </div>
+                      {worker.guiState && worker.guiState.progress > 0 && (
+                        <div className="mt-1 w-20 bg-gray-200 rounded-full h-1.5">
+                          <div
+                            className="bg-blue-600 h-1.5 rounded-full"
+                            style={{ width: `${worker.guiState.progress}%` }}
+                          ></div>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-yellow-600 font-medium">
+                        {worker.guiState ? worker.guiState.warningCount || 0 : 0}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-red-600 font-medium">
+                        {worker.guiState ? worker.guiState.errorCount || 0 : 0}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatLastSeen(worker.lastSeen)}

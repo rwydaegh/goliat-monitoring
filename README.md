@@ -1,6 +1,6 @@
 # GOLIAT Monitoring Dashboard
 
-A web-based monitoring dashboard for orchestrating and monitoring GOLIAT simulation studies across multiple TensorDock Windows VMs.
+A web-based monitoring dashboard for orchestrating and monitoring GOLIAT simulation studies across multiple worker machines.
 
 ## Quick Start
 

@@ -92,8 +92,8 @@ export async function POST(request: NextRequest) {
         updateData.stage = message.name
       }
       if (message.current !== undefined && message.total !== undefined) {
-        // Store stage progress separately, but update overall progress based on stage
-        updateData.progress = (message.current / message.total) * 100
+        // Store stage progress separately from overall progress
+        updateData.stageProgress = (message.current / message.total) * 100
       }
     }
 

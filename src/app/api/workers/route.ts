@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
         updatedAt: worker.updatedAt,
         guiState: latestGuiState ? {
           progress: latestGuiState.progress,
+          stageProgress: latestGuiState.stageProgress || 0,
           stage: latestGuiState.stage,
           warningCount: latestGuiState.warningCount || 0,
           errorCount: latestGuiState.errorCount || 0

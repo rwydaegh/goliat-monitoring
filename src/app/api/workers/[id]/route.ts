@@ -60,6 +60,7 @@ export async function GET(
         workerId: latestGuiState.workerId,
         stage: latestGuiState.stage,
         progress: latestGuiState.progress,
+        stageProgress: latestGuiState.stageProgress || 0,
         logMessages: latestGuiState.logMessages,
         eta: latestGuiState.eta,
         status: latestGuiState.status,

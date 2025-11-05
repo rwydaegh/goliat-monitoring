@@ -18,6 +18,7 @@ interface GuiState {
   workerId: string
   stage: string
   progress: number
+  stageProgress?: number
   logMessages: any[]
   eta: string | null
   status: string
@@ -182,12 +183,17 @@ export default function WorkerDetail() {
               <span className="text-sm text-gray-600">{guiState.stage || 'N/A'}</span>
             </div>
             {guiState.stage && (
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div
-                  className="bg-green-600 h-3 rounded-full transition-all duration-300"
-                  style={{ width: `${guiState.progress}%` }}
-                ></div>
-              </div>
+              <>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className="bg-green-600 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${guiState.stageProgress || 0}%` }}
+                  ></div>
+                </div>
+                <div className="text-right mt-1">
+                  <span className="text-xs text-gray-500">{(guiState.stageProgress || 0).toFixed(1)}%</span>
+                </div>
+              </>
             )}
           </div>
 
@@ -200,6 +206,20 @@ export default function WorkerDetail() {
               </span>
             </div>
           )}
+
+          {/* Warnings and Errors */}
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-sm font-medium text-gray-700 mb-1">Warnings</div>
+                <div className="text-2xl font-semibold text-yellow-600">{guiState.warningCount || 0}</div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-gray-700 mb-1">Errors</div>
+                <div className="text-2xl font-semibold text-red-600">{guiState.errorCount || 0}</div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -209,22 +229,27 @@ export default function WorkerDetail() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Logs</h2>
           <div 
             id="log-container"
-            className="space-y-2 max-h-96 overflow-y-auto"
+            className="space-y-1 max-h-96 overflow-y-auto bg-gray-900 rounded p-4"
           >
             {guiState.logMessages.slice(-50).map((log: any, idx: number) => {
               const logType = log.logType || 'default'
-              // Map GOLIAT log types to Tailwind colors
+              // Map GOLIAT log types to colors matching status_manager.py
               const colorClass = 
-                logType === 'success' || logType === 'progress' ? 'text-green-600' :
-                logType === 'warning' || logType === 'highlight' ? 'text-yellow-600' :
-                logType === 'error' || logType === 'fatal' ? 'text-red-600' :
-                logType === 'info' || logType === 'header' ? 'text-blue-600' :
-                logType === 'verbose' ? 'text-purple-600' :
-                'text-gray-600'
+                logType === 'success' ? 'text-green-500' :
+                logType === 'progress' ? 'text-gray-100' :
+                logType === 'warning' ? 'text-yellow-500' :
+                logType === 'highlight' ? 'text-yellow-300' :
+                logType === 'error' ? 'text-red-500' :
+                logType === 'fatal' ? 'text-pink-500' :
+                logType === 'info' ? 'text-cyan-500' :
+                logType === 'header' ? 'text-pink-400' :
+                logType === 'verbose' ? 'text-blue-600' :
+                logType === 'caller' ? 'text-gray-500' :
+                'text-gray-300'
               
               return (
                 <div key={idx} className={`text-sm ${colorClass} font-mono whitespace-pre`}>
-                  <span className="text-gray-400 text-xs">
+                  <span className="text-gray-600 text-xs">
                     {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : ''}
                   </span>
                   {' '}

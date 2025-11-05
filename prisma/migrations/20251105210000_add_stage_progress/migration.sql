@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "gui_state" ADD COLUMN "stageProgress" DOUBLE PRECISION NOT NULL DEFAULT 0;
+

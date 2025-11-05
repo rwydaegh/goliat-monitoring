@@ -85,18 +85,19 @@ model ProgressEvent {
 }
 
 model GuiState {
-  id          String   @id @default(uuid())
-  workerId    String
-  stage       String
-  progress    Float
-  logMessages Json[]
-  eta         DateTime?
-  status      String
-  warningCount Int     @default(0)
-  errorCount   Int     @default(0)
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(uuid())
+  workerId      String
+  stage         String
+  progress      Float
+  stageProgress Float    @default(0)
+  logMessages   Json[]
+  eta           DateTime?
+  status        String
+  warningCount  Int      @default(0)
+  errorCount    Int      @default(0)
+  updatedAt     DateTime @updatedAt
   
-  worker      Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  worker        Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
   
   @@unique([workerId])
   @@map("gui_state")
