@@ -2,83 +2,37 @@
 
 ## Issue: Your worker isn't showing up on the dashboard
 
-Based on your logs, the GOLIAT study is running but **WebGUIBridge is not initializing**. This means the environment variables aren't set.
+Since web monitoring is now hardcoded into GOLIAT, if your worker isn't appearing, check the following:
 
-## Quick Fix
+## Quick Checks
 
-You need to set the environment variables **before** running `goliat study test`. Here's how:
+### 1. Verify GOLIAT is Running with GUI
 
-### Option 1: Set in Git Bash (Current Session)
-
+The web monitoring bridge only works when the GUI is enabled (which is the default). Make sure you're running:
 ```bash
-cd goliat
-source .bashrc
-
-# Set environment variables
-export GOLIAT_WEBGUI_ENABLED=true
-export GOLIAT_MONITORING_URL=https://your-railway-url.railway.app
-
-# Verify they're set
-echo $GOLIAT_WEBGUI_ENABLED
-echo $GOLIAT_MONITORING_URL
-
-# Now run the study
 goliat study test --no-cache
 ```
 
-### Option 2: Set in PowerShell (Current Session)
+Not in headless mode.
 
-```powershell
-cd goliat
-
-# Set environment variables
-$env:GOLIAT_WEBGUI_ENABLED="true"
-$env:GOLIAT_MONITORING_URL="https://your-railway-url.railway.app"
-
-# Verify they're set
-echo $env:GOLIAT_WEBGUI_ENABLED
-echo $env:GOLIAT_MONITORING_URL
-
-# Now run the study
-goliat study test --no-cache
-```
-
-### Option 3: Add to .bashrc (Persistent)
-
-Add these lines to your `goliat/.bashrc` file:
-
-```bash
-export GOLIAT_WEBGUI_ENABLED=true
-export GOLIAT_MONITORING_URL=https://your-railway-url.railway.app
-```
-
-Then:
-```bash
-cd goliat
-source .bashrc
-goliat study test --no-cache
-```
-
-## How to Verify It's Working
-
-### 1. Check GOLIAT Logs for WebGUIBridge Messages
+### 2. Check GOLIAT Logs for WebGUIBridge Messages
 
 After starting the study, look for these messages in your logs:
 
 ```
-Web GUI bridge enabled: https://your-railway-url.railway.app, machine_id=YOUR_IP
+Web GUI bridge enabled: https://goliat-monitoring.up.railway.app, machine_id=YOUR_IP
 ```
 
 If you see this message, the bridge is working!
 
-### 2. Check Dashboard
+### 3. Check Dashboard
 
-1. Go to your Railway dashboard URL
+1. Go to your Railway dashboard URL: `https://goliat-monitoring.up.railway.app`
 2. Refresh the page
 3. Your worker should appear within 5-10 seconds
 4. The IP address will be your machine's IP (auto-detected)
 
-### 3. Check Browser Console
+### 4. Check Browser Console
 
 Open browser dev tools (F12) and check:
 - Network tab: Should see calls to `/api/workers` every 3 seconds
@@ -91,45 +45,70 @@ Open browser dev tools (F12) and check:
 - Dashboard shows your worker
 - Heartbeat updates every 30 seconds
 - Progress updates appear
+- Connection status indicator shows green in GOLIAT GUI
 
 ### ❌ Failure Indicators:
 - No "Web GUI bridge enabled" message in logs
 - Worker doesn't appear on dashboard
-- Check that environment variables are actually set
+- Connection status indicator shows red in GOLIAT GUI
 
-## Common Mistakes
+## Common Issues
 
-1. **Forgot to export variables** - Variables set in one terminal session don't persist
-2. **Wrong URL format** - Must include `https://` and end with `.railway.app`
-3. **Typo in variable name** - Must be exactly `GOLIAT_WEBGUI_ENABLED` (case-sensitive)
-4. **Value not "true"** - Must be exactly `true` (lowercase string)
+### Missing `requests` Library
 
-## Still Not Working?
-
-### Check Railway URL
-1. Go to [railway.app](https://railway.app)
-2. Find your project → Next.js service
-3. Get the URL from Settings → Domains
-
-### Check Network Connectivity
-```bash
-# Test if Railway is accessible
-curl https://your-railway-url.railway.app/api/workers
-
-# Should return JSON (empty array if no workers)
-```
-
-### Check GOLIAT Logs
-Look for errors like:
-- "Failed to initialize web GUI bridge"
-- "requests library not available"
-- Network connection errors
-
-### Install requests Library
 If you see "requests library not available":
 ```bash
 pip install requests
 ```
+
+### Network Connectivity Issues
+
+Test if Railway is accessible:
+```bash
+# Test if Railway is accessible
+curl https://goliat-monitoring.up.railway.app/api/workers
+
+# Should return JSON (empty array if no workers)
+```
+
+### Database Migration Issues
+
+If you see database errors:
+- Check Railway dashboard for build errors
+- Verify PostgreSQL service is running
+- Migrations run automatically during build
+
+### Connection Status Indicator
+
+Check the GOLIAT GUI top-right corner:
+- **Green dot** = Connected to dashboard
+- **Red dot** = Disconnected (check network/Railway status)
+
+## Still Not Working?
+
+### Check Railway Deployment
+
+1. Go to [railway.app](https://railway.app)
+2. Find your project → Next.js service
+3. Check build status:
+   - 🟢 **Successful** = Should work
+   - 🟡 **Building** = Wait a few minutes
+   - 🔴 **Failed** = Check build logs
+
+### Check Railway Logs
+
+In Railway dashboard:
+1. Go to your Next.js service
+2. Click "Deploy" tab
+3. Click on latest deployment
+4. Check logs for errors
+
+### Verify Database Migrations
+
+Migrations should run automatically during build. If you see database errors:
+1. Check Railway build logs
+2. Verify PostgreSQL service is running
+3. Try manually redeploying
 
 ## Next Steps
 
@@ -138,4 +117,6 @@ Once your worker appears:
 2. Status will change from "idle" → "running" → "idle"
 3. Progress bars will update in real-time
 4. Log messages will appear
+5. Connection status indicator in GOLIAT GUI will show green
+
 

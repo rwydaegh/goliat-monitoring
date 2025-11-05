@@ -44,14 +44,19 @@ GOLIAT_API_KEY=your-secret-api-key-here
 2. Watch the build logs in the Railway dashboard
 3. Once complete, you'll get a Railway-provided URL like: `https://your-app-name.railway.app`
 
-## Step 5: Initialize Database
+## Step 5: Database Migrations (Automatic)
 
-1. Once deployed, run the database migrations:
-   ```bash
-   # Connect to your Railway app and run:
-   npx prisma migrate deploy
-   npx prisma generate
-   ```
+**Database migrations run automatically during the build process!** No manual steps needed.
+
+The build script includes:
+```json
+"build": "prisma migrate deploy && prisma generate && next build"
+```
+
+Railway will automatically:
+1. Run migrations on deploy
+2. Generate Prisma client
+3. Build the Next.js app
 
 ## Step 6: Test Your Deployment
 

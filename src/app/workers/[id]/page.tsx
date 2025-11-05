@@ -52,6 +52,14 @@ export default function WorkerDetail() {
         setWorker(data.worker)
         setGuiState(data.guiState)
         setLoading(false)
+        
+        // Scroll log container to bottom (showing latest logs) after render
+        setTimeout(() => {
+          const logContainer = document.getElementById('log-container')
+          if (logContainer) {
+            logContainer.scrollTop = logContainer.scrollHeight
+          }
+        }, 100)
       } catch (error) {
         console.error('Error fetching worker details:', error)
         setError('Failed to fetch worker details')
@@ -197,8 +205,11 @@ export default function WorkerDetail() {
       {guiState && guiState.logMessages && guiState.logMessages.length > 0 && (
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Logs</h2>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {guiState.logMessages.slice(-50).reverse().map((log: any, idx: number) => {
+          <div 
+            id="log-container"
+            className="space-y-2 max-h-96 overflow-y-auto"
+          >
+            {guiState.logMessages.slice(-50).map((log: any, idx: number) => {
               const logType = log.logType || 'default'
               const colorClass = 
                 logType === 'success' ? 'text-green-600' :
@@ -207,7 +218,7 @@ export default function WorkerDetail() {
                 'text-gray-600'
               
               return (
-                <div key={idx} className={`text-sm ${colorClass} font-mono`}>
+                <div key={idx} className={`text-sm ${colorClass} font-mono whitespace-pre`}>
                   <span className="text-gray-400 text-xs">
                     {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : ''}
                   </span>

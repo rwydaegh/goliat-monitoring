@@ -18,6 +18,8 @@ This project is configured for Railway deployment with built-in PostgreSQL.
 3. Add PostgreSQL service
 4. Deploy! 🚀
 
+Migrations run automatically during the build process.
+
 ## Features
 
 - 🟢🔴 Real-time worker status monitoring (green/red lights)
@@ -35,9 +37,34 @@ This project is configured for Railway deployment with built-in PostgreSQL.
 - **Deployment**: Railway
 - **Worker Agent**: Python 3.11+ with `requests` library
 
-## Architecture
+## Configuration
 
-See [docs/architecture.md](./docs/architecture.md) for detailed system architecture and design decisions.
+### Web Monitoring (Hardcoded)
+
+The GOLIAT client automatically connects to the monitoring dashboard:
+- **Dashboard URL**: `https://goliat-monitoring.up.railway.app` (hardcoded in GOLIAT)
+- **Machine ID**: Auto-detected (public IP or local IP)
+- **Status Indicator**: Green/red connection status shown in GOLIAT GUI
+
+No environment variables needed - everything is configured automatically!
+
+## Documentation
+
+- **[Architecture](./docs/architecture.md)** - System architecture and design decisions
+- **[Railway Deployment](./docs/railway-deployment.md)** - Deployment guide
+- **[Database Migrations](./docs/railway-migrations.md)** - Database setup and migration guide
+- **[Troubleshooting](./docs/troubleshooting-worker-not-appearing.md)** - Common issues and solutions
+
+## API Endpoints
+
+- `GET /api/workers` - List all registered workers
+- `GET /api/workers/[id]` - Get worker details
+- `POST /api/heartbeat` - Worker heartbeat (automatic)
+- `POST /api/gui-update` - GUI state updates (automatic)
+
+## Testing
+
+See `TEST_API.md` for API testing instructions.
 
 ## License
 
