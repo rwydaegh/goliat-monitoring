@@ -11,6 +11,7 @@ interface Assignment {
   currentStage?: string
   startedAt?: string
   completedAt?: string
+  splitConfig?: any
   worker?: {
     id: string
     ipAddress: string
@@ -215,6 +216,9 @@ export default function SuperStudyDetail() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Started At
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -253,21 +257,22 @@ export default function SuperStudyDetail() {
                     {assignment.startedAt ? new Date(assignment.startedAt).toLocaleString() : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => {
-                        const jsonStr = JSON.stringify(assignment.splitConfig, null, 2)
-                        const blob = new Blob([jsonStr], { type: 'application/json' })
-                        const url = URL.createObjectURL(blob)
-                        const a = document.createElement('a')
-                        a.href = url
-                        a.download = `${study.name}_assignment_${index}.json`
-                        a.click()
-                        URL.revokeObjectURL(url)
-                      }}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      View JSON
-                    </button>
+                      <button
+                        onClick={() => {
+                          const jsonStr = JSON.stringify(assignment.splitConfig || {}, null, 2)
+                          const blob = new Blob([jsonStr], { type: 'application/json' })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `${study.name}_assignment_${index}.json`
+                          a.click()
+                          URL.revokeObjectURL(url)
+                        }}
+                        className="text-blue-600 hover:text-blue-900"
+                        disabled={!assignment.splitConfig}
+                      >
+                        View JSON
+                      </button>
                   </td>
                 </tr>
               ))}
