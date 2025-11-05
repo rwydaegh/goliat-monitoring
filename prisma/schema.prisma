@@ -1,0 +1,134 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Worker {
+  id            String   @id @default(uuid())
+  ipAddress     String   @unique
+  hostname      String?
+  status        WorkerStatus @default(IDLE)
+  lastSeen      DateTime @default(now())
+  machineLabel  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  assignments   Assignment[]
+  progressEvents ProgressEvent[]
+  guiState      GuiState[]
+  
+  @@map("workers")
+}
+
+model SuperStudy {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  baseConfigPath  String?
+  status          StudyStatus @default(PENDING)
+  totalAssignments Int      @default(0)
+  completedAssignments Int  @default(0)
+  masterProgress  Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  assignments     Assignment[]
+  
+  @@map("super_studies")
+}
+
+model Assignment {
+  id           String   @id @default(uuid())
+  workerId     String
+  superStudyId String
+  splitConfig  Json
+  status       AssignmentStatus @default(PENDING)
+  progress     Float    @default(0)
+  currentStage String?
+  eta          DateTime?
+  resultData   Json?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  worker       Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  superStudy   SuperStudy @relation(fields: [superStudyId], references: [id], onDelete: Cascade)
+  progressEvents ProgressEvent[]
+  
+  @@map("assignments")
+}
+
+model ProgressEvent {
+  id          String   @id @default(uuid())
+  workerId    String
+  assignmentId String?
+  eventType   EventType
+  message     String
+  stage       String?
+  progress    Float?
+  eta         DateTime?
+  timestamp   DateTime @default(now())
+  data        Json?
+  
+  worker      Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  assignment  Assignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  
+  @@map("progress_events")
+}
+
+model GuiState {
+  id          String   @id @default(uuid())
+  workerId    String
+  stage       String
+  progress    Float
+  logMessages Json[]
+  eta         DateTime?
+  status      String
+  updatedAt   DateTime @updatedAt
+  
+  worker      Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  
+  @@unique([workerId])
+  @@map("gui_state")
+}
+
+enum WorkerStatus {
+  IDLE
+  RUNNING
+  ERROR
+  OFFLINE
+}
+
+enum StudyStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AssignmentStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum EventType {
+  STARTED
+  PROGRESS
+  STAGE_CHANGE
+  LOG
+  ERROR
+  FINISHED
+  ETA_UPDATE
+}

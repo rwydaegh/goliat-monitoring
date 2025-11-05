@@ -1,0 +1,36 @@
+{
+  "name": "goliat-monitoring",
+  "version": "0.1.0",
+  "description": "Web-based monitoring dashboard for orchestrating and monitoring GOLIAT simulation studies across multiple TensorDock Windows VMs",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "next": "14.2.15",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@prisma/client": "^5.19.1",
+    "@railway/database": "^1.0.0",
+    "clsx": "^2.1.1",
+    "tailwindcss": "^3.4.12",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "lucide-react": "^0.447.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.2",
+    "@types/node": "^20.16.5",
+    "@types/react": "^18.3.7",
+    "@types/react-dom": "^18.3.0",
+    "prisma": "^5.19.1",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2.15"
+  }
+}
