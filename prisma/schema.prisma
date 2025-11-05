@@ -92,6 +92,8 @@ model GuiState {
   logMessages Json[]
   eta         DateTime?
   status      String
+  warningCount Int     @default(0)
+  errorCount   Int     @default(0)
   updatedAt   DateTime @updatedAt
   
   worker      Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)

@@ -3,14 +3,65 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   try {
-    // Simplified query - remove include to avoid potential relation issues
     const workers = await prisma.worker.findMany({
       orderBy: {
         lastSeen: 'desc'
+      },
+      include: {
+        guiState: {
+          orderBy: {
+            updatedAt: 'desc'
+          },
+          take: 1
+        }
       }
     })
 
-    return NextResponse.json(workers)
+    // Update stale workers: if RUNNING and lastSeen > 15 seconds ago, mark as IDLE
+    const now = new Date()
+    const fifteenSecondsAgo = new Date(now.getTime() - 15 * 1000)
+    
+    const staleWorkers = workers.filter(worker => 
+      worker.status === 'RUNNING' && worker.lastSeen < fifteenSecondsAgo
+    )
+
+    // Update stale workers in database
+    if (staleWorkers.length > 0) {
+      await Promise.all(
+        staleWorkers.map(worker =>
+          prisma.worker.update({
+            where: { id: worker.id },
+            data: { status: 'IDLE' }
+          })
+        )
+      )
+    }
+
+    // Return workers with GUI state included
+    const updatedWorkers = workers.map(worker => {
+      const latestGuiState = Array.isArray(worker.guiState) && worker.guiState.length > 0
+        ? worker.guiState[0]
+        : null
+      
+      return {
+        id: worker.id,
+        ipAddress: worker.ipAddress,
+        hostname: worker.hostname,
+        status: worker.status === 'RUNNING' && worker.lastSeen < fifteenSecondsAgo ? 'IDLE' : worker.status,
+        lastSeen: worker.lastSeen,
+        machineLabel: worker.machineLabel,
+        createdAt: worker.createdAt,
+        updatedAt: worker.updatedAt,
+        guiState: latestGuiState ? {
+          progress: latestGuiState.progress,
+          stage: latestGuiState.stage,
+          warningCount: latestGuiState.warningCount || 0,
+          errorCount: latestGuiState.errorCount || 0
+        } : null
+      }
+    })
+
+    return NextResponse.json(updatedWorkers)
   } catch (error) {
     console.error('Error fetching workers:', error)
     // Return more detailed error in development

@@ -2,13 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Computer, Activity, Clock, CheckCircle } from 'lucide-react'
+import { Computer, Activity, Clock, CheckCircle, TrendingUp, AlertTriangle, XCircle } from 'lucide-react'
 
 interface DashboardStats {
   totalWorkers: number
   onlineWorkers: number
   runningStudies: number
   completedToday: number
+  overallProgress: number
+  totalWarnings: number
+  totalErrors: number
 }
 
 interface Worker {
@@ -25,7 +28,10 @@ export default function Dashboard() {
     totalWorkers: 0,
     onlineWorkers: 0,
     runningStudies: 0,
-    completedToday: 0
+    completedToday: 0,
+    overallProgress: 0,
+    totalWarnings: 0,
+    totalErrors: 0
   })
   const [workers, setWorkers] = useState<Worker[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,14 +54,31 @@ export default function Dashboard() {
           w.status === 'RUNNING'
         ).length
         
+        // Calculate overall progress (average of all running workers)
+        const runningWorkersWithProgress = workersData.filter((w: any) => 
+          w.status === 'RUNNING' && w.guiState && w.guiState.progress !== undefined
+        )
+        const overallProgress = runningWorkersWithProgress.length > 0
+          ? runningWorkersWithProgress.reduce((sum: number, w: any) => sum + (w.guiState.progress || 0), 0) / runningWorkersWithProgress.length
+          : 0
+        
+        // Calculate total warnings and errors
+        const totalWarnings = workersData.reduce((sum: number, w: any) => 
+          sum + (w.guiState?.warningCount || 0), 0
+        )
+        const totalErrors = workersData.reduce((sum: number, w: any) => 
+          sum + (w.guiState?.errorCount || 0), 0
+        )
+        
         // Transform Prisma worker data to match our interface
         const transformedWorkers = workersData.map((w: any) => ({
           id: w.id,
           ipAddress: w.ipAddress,
           hostname: w.hostname || undefined,
-          status: w.status, // Keep original case (IDLE, RUNNING, OFFLINE, ERROR)
+          status: w.status,
           lastSeen: w.lastSeen,
-          machineLabel: w.machineLabel || undefined
+          machineLabel: w.machineLabel || undefined,
+          guiState: w.guiState || undefined
         }))
         
         setWorkers(transformedWorkers)
@@ -63,7 +86,10 @@ export default function Dashboard() {
           totalWorkers,
           onlineWorkers,
           runningStudies,
-          completedToday: 0 // TODO: Calculate from assignments
+          completedToday: 0, // TODO: Calculate from assignments
+          overallProgress: Math.round(overallProgress * 10) / 10, // Round to 1 decimal
+          totalWarnings,
+          totalErrors
         })
         setLoading(false)
       } catch (error) {
@@ -197,6 +223,65 @@ export default function Dashboard() {
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Completed Today</dt>
                   <dd className="text-lg font-medium text-gray-900">{stats.completedToday}</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress and Status Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <TrendingUp className="h-6 w-6 text-blue-400" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Overall Progress</dt>
+                  <dd className="text-lg font-medium text-gray-900">{stats.overallProgress.toFixed(1)}%</dd>
+                </dl>
+                {stats.runningStudies > 0 && (
+                  <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(stats.overallProgress, 100)}%` }}
+                    ></div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <AlertTriangle className="h-6 w-6 text-yellow-400" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Total Warnings</dt>
+                  <dd className="text-lg font-medium text-gray-900">{stats.totalWarnings}</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <XCircle className="h-6 w-6 text-red-400" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Total Errors</dt>
+                  <dd className="text-lg font-medium text-gray-900">{stats.totalErrors}</dd>
                 </dl>
               </div>
             </div>

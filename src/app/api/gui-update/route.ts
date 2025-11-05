@@ -98,16 +98,36 @@ export async function POST(request: NextRequest) {
     // Handle status/log messages
     if (messageType === 'status' && message.message) {
       const logMessages = Array.isArray(guiState.logMessages) ? [...guiState.logMessages] : []
+      const logType = message.log_type || 'default'
+      
+      // Track warnings and errors
+      let warningCount = 0
+      let errorCount = 0
+      logMessages.forEach((log: any) => {
+        const lt = log.logType || 'default'
+        if (lt === 'warning' || lt === 'highlight') warningCount++
+        if (lt === 'error' || lt === 'fatal') errorCount++
+      })
+      
+      // Add new log message
       logMessages.push({
         message: message.message,
-        logType: message.log_type || 'default',
+        logType: logType,
         timestamp: timestamp || new Date().toISOString()
       })
+      
+      // Update counts for new message
+      if (logType === 'warning' || logType === 'highlight') warningCount++
+      if (logType === 'error' || logType === 'fatal') errorCount++
+      
       // Keep only last 100 log messages
       if (logMessages.length > 100) {
         logMessages.shift()
       }
+      
       updateData.logMessages = logMessages
+      updateData.warningCount = warningCount
+      updateData.errorCount = errorCount
     }
 
     // Handle profiler_update (ETA)

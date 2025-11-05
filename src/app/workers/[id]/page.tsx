@@ -21,6 +21,8 @@ interface GuiState {
   logMessages: any[]
   eta: string | null
   status: string
+  warningCount?: number
+  errorCount?: number
   updatedAt: string
 }
 
@@ -211,10 +213,13 @@ export default function WorkerDetail() {
           >
             {guiState.logMessages.slice(-50).map((log: any, idx: number) => {
               const logType = log.logType || 'default'
+              // Map GOLIAT log types to Tailwind colors
               const colorClass = 
-                logType === 'success' ? 'text-green-600' :
-                logType === 'warning' ? 'text-yellow-600' :
+                logType === 'success' || logType === 'progress' ? 'text-green-600' :
+                logType === 'warning' || logType === 'highlight' ? 'text-yellow-600' :
                 logType === 'error' || logType === 'fatal' ? 'text-red-600' :
+                logType === 'info' || logType === 'header' ? 'text-blue-600' :
+                logType === 'verbose' ? 'text-purple-600' :
                 'text-gray-600'
               
               return (

@@ -27,6 +27,20 @@ export async function GET(
       )
     }
 
+    // Check if worker is stale (RUNNING but no heartbeat for >15 seconds)
+    const now = new Date()
+    const fifteenSecondsAgo = new Date(now.getTime() - 15 * 1000)
+    let workerStatus = worker.status
+
+    if (worker.status === 'RUNNING' && worker.lastSeen < fifteenSecondsAgo) {
+      workerStatus = 'IDLE'
+      // Update database
+      await prisma.worker.update({
+        where: { id: workerId },
+        data: { status: 'IDLE' }
+      })
+    }
+
     // Get latest GUI state (should only be one due to unique constraint, but handle as array)
     const latestGuiState = Array.isArray(worker.guiState) && worker.guiState.length > 0
       ? worker.guiState[0]
@@ -37,7 +51,7 @@ export async function GET(
         id: worker.id,
         ipAddress: worker.ipAddress,
         hostname: worker.hostname,
-        status: worker.status,
+        status: workerStatus,
         lastSeen: worker.lastSeen,
         machineLabel: worker.machineLabel
       },
@@ -49,6 +63,8 @@ export async function GET(
         logMessages: latestGuiState.logMessages,
         eta: latestGuiState.eta,
         status: latestGuiState.status,
+        warningCount: latestGuiState.warningCount || 0,
+        errorCount: latestGuiState.errorCount || 0,
         updatedAt: latestGuiState.updatedAt
       } : null
     })
