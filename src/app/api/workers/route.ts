@@ -3,16 +3,8 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   try {
+    // Simplified query - remove include to avoid potential relation issues
     const workers = await prisma.worker.findMany({
-      include: {
-        assignments: {
-          where: {
-            status: {
-              in: ['PENDING', 'RUNNING']
-            }
-          }
-        }
-      },
       orderBy: {
         lastSeen: 'desc'
       }
@@ -26,7 +18,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { 
           error: 'Failed to fetch workers',
-          details: error instanceof Error ? error.message : String(error)
+          details: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
         },
         { status: 500 }
       )
