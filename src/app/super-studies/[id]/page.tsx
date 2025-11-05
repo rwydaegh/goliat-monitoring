@@ -249,15 +249,28 @@ export default function SuperStudyDetail() {
                       <span className="text-sm text-gray-600">{assignment.progress.toFixed(1)}%</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {assignment.currentStage || '-'}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {assignment.startedAt ? new Date(assignment.startedAt).toLocaleString() : '-'}
                   </td>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Started At
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button
+                      onClick={() => {
+                        const jsonStr = JSON.stringify(assignment.splitConfig, null, 2)
+                        const blob = new Blob([jsonStr], { type: 'application/json' })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `${study.name}_assignment_${index}.json`
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      }}
+                      className="text-blue-600 hover:text-blue-900"
+                    >
+                      View JSON
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
