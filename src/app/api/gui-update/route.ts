@@ -170,6 +170,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Handle profiler_update with ETA
+    if (messageType === 'profiler_update' && message.eta_seconds !== undefined) {
+      if (message.eta_seconds && message.eta_seconds > 0) {
+        // Convert eta_seconds to future timestamp
+        const etaDate = new Date(Date.now() + message.eta_seconds * 1000)
+        updateData.eta = etaDate
+      }
+    }
+
     // Handle status/log messages
     if (messageType === 'status' && message.message) {
       const logMessages = Array.isArray(guiState.logMessages) ? [...guiState.logMessages] : []
