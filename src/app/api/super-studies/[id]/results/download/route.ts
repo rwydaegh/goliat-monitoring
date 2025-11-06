@@ -59,9 +59,9 @@ export async function GET(
       }
     }
     
-    // Generate ZIP file as buffer
+    // Generate ZIP file as Uint8Array (compatible with NextResponse)
     const zipBuffer = await zip.generateAsync({
-      type: 'nodebuffer',
+      type: 'uint8array',
       compression: 'DEFLATE',
       compressionOptions: { level: 6 }
     })
