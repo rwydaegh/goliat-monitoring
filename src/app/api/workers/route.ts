@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if worker already exists (non-stale)
-    const oneMinuteAgo = new Date(Date.now() - 60 * 1000)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
     const existingWorker = await prisma.worker.findFirst({
       where: {
         ipAddress,
@@ -109,15 +109,15 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // If worker exists but hasn't been seen in 1 minute, mark as stale
-    if (existingWorker && existingWorker.lastSeen < oneMinuteAgo) {
+    // If worker exists but hasn't been seen in 5 minutes, mark as stale
+    if (existingWorker && existingWorker.lastSeen < fiveMinutesAgo) {
       await prisma.worker.update({
         where: { id: existingWorker.id },
         data: { isStale: true }
       })
     }
 
-    if (existingWorker && existingWorker.lastSeen >= oneMinuteAgo) {
+    if (existingWorker && existingWorker.lastSeen >= fiveMinutesAgo) {
       // Update existing active worker
       const updatedWorker = await prisma.worker.update({
         where: { id: existingWorker.id },

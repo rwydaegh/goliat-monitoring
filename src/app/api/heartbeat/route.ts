@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
       try {
         // Check for existing non-stale workers with same IP
-        const oneMinuteAgo = new Date(Date.now() - 60 * 1000)
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
         let worker = await prisma.worker.findFirst({
           where: {
             ipAddress: machineId,
@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
           }
         })
 
-        // If worker exists but hasn't been seen in 1 minute, mark as stale
-        if (worker && worker.lastSeen < oneMinuteAgo) {
+        // If worker exists but hasn't been seen in 5 minutes, mark as stale
+        if (worker && worker.lastSeen < fiveMinutesAgo) {
           // Mark old worker as stale (assignments will be transferred to new worker below)
           await prisma.worker.update({
             where: { id: worker.id },
