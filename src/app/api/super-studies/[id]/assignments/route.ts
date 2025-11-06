@@ -31,7 +31,46 @@ export async function GET(
       }
     })
 
-    return NextResponse.json(assignments)
+    // Resolve stale workers to their active counterparts
+    const assignmentsWithResolvedWorkers = await Promise.all(
+      assignments.map(async (assignment) => {
+        if (!assignment.worker || !assignment.worker.isStale) {
+          return assignment
+        }
+
+        // Find active worker with same IP
+        const activeWorker = await prisma.worker.findFirst({
+          where: {
+            ipAddress: assignment.worker.ipAddress,
+            isStale: false
+          },
+          orderBy: {
+            lastSeen: 'desc'
+          },
+          select: {
+            id: true,
+            ipAddress: true,
+            hostname: true,
+            machineLabel: true,
+            gpuName: true,
+            cpuCores: true,
+            totalRamGB: true,
+            isStale: true
+          }
+        })
+
+        if (activeWorker) {
+          return {
+            ...assignment,
+            worker: activeWorker
+          }
+        }
+
+        return assignment
+      })
+    )
+
+    return NextResponse.json(assignmentsWithResolvedWorkers)
   } catch (error) {
     console.error('Error fetching assignments:', error)
     return NextResponse.json(
