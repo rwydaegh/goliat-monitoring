@@ -30,10 +30,11 @@ export async function POST(request: NextRequest) {
 
         // Priority 2: Check for recent workers with RUNNING assignments (likely from claim)
         // This handles IP changes between claim and GUI start
-        if (!worker) {
+        if (!worker && hostname) {
           const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000)
-          const thirtySecondsAgo = new Date(Date.now() - 30 * 1000)
           
+          // Look for recent workers with RUNNING assignments that don't have a hostname yet
+          // (barebones workers created during claim)
           const recentWorkerWithAssignment = await prisma.worker.findFirst({
             where: {
               isStale: false,
@@ -45,10 +46,13 @@ export async function POST(request: NextRequest) {
                   status: 'RUNNING'
                 }
               },
-              // Hasn't been updated recently (no GUI data yet)
-              lastSeen: {
-                lt: thirtySecondsAgo
-              }
+              // Match workers that don't have hostname (barebones from claim)
+              // OR haven't been updated recently (old matching logic)
+              OR: [
+                { hostname: null },
+                { hostname: '' },
+                { lastSeen: { lt: new Date(Date.now() - 30 * 1000) } }
+              ]
             },
             orderBy: {
               createdAt: 'desc'
@@ -61,7 +65,7 @@ export async function POST(request: NextRequest) {
               where: { id: recentWorkerWithAssignment.id },
               data: {
                 ipAddress: machineId,
-                hostname: hostname || recentWorkerWithAssignment.hostname
+                hostname: hostname
               }
             })
           }

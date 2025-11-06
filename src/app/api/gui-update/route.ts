@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     if (!worker) {
       // Before creating new worker, check if there's a very recent worker (likely from claim)
-      // that has a RUNNING assignment but hasn't been updated - this handles IP changes
+      // that has a RUNNING assignment - this handles IP changes
       const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000)
       const recentWorkerWithAssignment = await prisma.worker.findFirst({
         where: {
@@ -56,11 +56,9 @@ export async function POST(request: NextRequest) {
             some: {
               status: 'RUNNING'
             }
-          },
-          // Hasn't been updated recently (no GUI data yet)
-          lastSeen: {
-            lt: new Date(Date.now() - 30 * 1000) // Older than 30 seconds
           }
+          // Removed the lastSeen check - match ANY recent worker with RUNNING assignment
+          // even if it was just created/updated
         },
         orderBy: {
           createdAt: 'desc'
