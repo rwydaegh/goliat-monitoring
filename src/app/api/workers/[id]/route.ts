@@ -176,7 +176,7 @@ export async function DELETE(
 
     // Update super study progress for each affected super study
     // Fetch fresh data after assignments have been updated
-    const superStudyIds = [...new Set(assignments.map(a => a.superStudyId))]
+    const superStudyIds = Array.from(new Set(assignments.map(a => a.superStudyId)))
     
     for (const superStudyId of superStudyIds) {
       const superStudy = await prisma.superStudy.findUnique({
