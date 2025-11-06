@@ -1,4 +1,6 @@
 -- AlterTable: Remove unique constraint from ipAddress, add sessionId and isStale
+-- Note: Prisma created this as a UNIQUE INDEX, not a CONSTRAINT, so we drop the index
+DROP INDEX IF EXISTS "workers_ipAddress_key";
 ALTER TABLE "workers" DROP CONSTRAINT IF EXISTS "workers_ipAddress_key";
 
 -- AlterTable: Add sessionId column with unique constraint
