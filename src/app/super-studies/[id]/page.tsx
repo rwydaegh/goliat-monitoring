@@ -267,6 +267,15 @@ export default function SuperStudyDetail() {
                     {assignment.startedAt ? new Date(assignment.startedAt).toLocaleString() : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center space-x-2">
+                      {assignment.worker && (
+                        <a
+                          href={`/workers/${assignment.worker.id}`}
+                          className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors shadow-sm"
+                        >
+                          View Worker
+                        </a>
+                      )}
                       <button
                         onClick={() => {
                           const jsonStr = JSON.stringify(assignment.splitConfig || {}, null, 2)
@@ -278,11 +287,12 @@ export default function SuperStudyDetail() {
                           a.click()
                           URL.revokeObjectURL(url)
                         }}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1 transition-colors"
                         disabled={!assignment.splitConfig}
                       >
                         View JSON
                       </button>
+                    </div>
                   </td>
                 </tr>
               ))}
