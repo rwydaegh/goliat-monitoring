@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
 
         // If worker exists but hasn't been seen in 1 minute, mark as stale
         if (worker && worker.lastSeen < oneMinuteAgo) {
+          // Mark old worker as stale (assignments will be transferred to new worker below)
           await prisma.worker.update({
             where: { id: worker.id },
             data: { isStale: true }
@@ -50,6 +51,26 @@ export async function POST(request: NextRequest) {
               isStale: false
             }
           })
+
+          // Transfer any RUNNING assignments from stale workers with same IP to this new worker
+          const staleWorkers = await prisma.worker.findMany({
+            where: {
+              ipAddress: machineId,
+              isStale: true
+            }
+          })
+
+          for (const staleWorker of staleWorkers) {
+            await prisma.assignment.updateMany({
+              where: {
+                workerId: staleWorker.id,
+                status: 'RUNNING'
+              },
+              data: {
+                workerId: worker.id
+              }
+            })
+          }
         } else {
           // Update existing active worker with system info
           await prisma.worker.update({
