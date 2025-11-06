@@ -147,14 +147,80 @@ export async function DELETE(
   try {
     const { id: workerId } = await params
 
-    // Delete worker (cascade delete will handle guiState, assignments, progressEvents)
+    // Find all assignments for this worker before deleting
+    const assignments = await prisma.assignment.findMany({
+      where: { workerId },
+      include: {
+        superStudy: true
+      }
+    })
+
+    // Unassign all assignments (reset to PENDING, clear workerId, reset progress)
+    const assignmentUpdates = assignments.map(assignment =>
+      prisma.assignment.update({
+        where: { id: assignment.id },
+        data: {
+          workerId: null,
+          status: 'PENDING',
+          progress: 0,
+          currentStage: null,
+          eta: null,
+          startedAt: null,
+          completedAt: null
+        }
+      })
+    )
+
+    // Wait for all assignment updates to complete
+    await Promise.all(assignmentUpdates)
+
+    // Update super study progress for each affected super study
+    // Fetch fresh data after assignments have been updated
+    const superStudyIds = [...new Set(assignments.map(a => a.superStudyId))]
+    
+    for (const superStudyId of superStudyIds) {
+      const superStudy = await prisma.superStudy.findUnique({
+        where: { id: superStudyId },
+        include: {
+          assignments: true
+        }
+      })
+
+      if (superStudy) {
+        // Recalculate based on current assignment states (after updates)
+        const completedCount = superStudy.assignments.filter(a => a.status === 'COMPLETED').length
+        const totalAssignments = superStudy.totalAssignments
+        const masterProgress = totalAssignments > 0 ? (completedCount / totalAssignments) * 100 : 0
+
+        // Determine status based on assignments
+        let status = superStudy.status
+        if (completedCount === totalAssignments && totalAssignments > 0) {
+          status = 'COMPLETED'
+        } else if (superStudy.assignments.some(a => a.status === 'RUNNING')) {
+          status = 'RUNNING'
+        } else if (superStudy.assignments.every(a => a.status === 'PENDING')) {
+          status = 'PENDING'
+        }
+
+        await prisma.superStudy.update({
+          where: { id: superStudyId },
+          data: {
+            completedAssignments: completedCount,
+            masterProgress: masterProgress,
+            status: status
+          }
+        })
+      }
+    }
+
+    // Now delete the worker (cascade delete will handle guiState and progressEvents)
     await prisma.worker.delete({
       where: { id: workerId }
     })
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Worker deleted successfully' 
+      message: 'Worker deleted successfully. Assignments have been unassigned.' 
     })
   } catch (error) {
     console.error('Error deleting worker:', error)
