@@ -84,8 +84,8 @@ export default function WorkerDetail() {
     if (workerId) {
       fetchWorkerDetails()
       
-      // Poll for updates every 2 seconds
-      const interval = setInterval(fetchWorkerDetails, 2000)
+      // Poll for updates every 1 second for faster log updates
+      const interval = setInterval(fetchWorkerDetails, 1000)
       return () => clearInterval(interval)
     }
   }, [workerId])

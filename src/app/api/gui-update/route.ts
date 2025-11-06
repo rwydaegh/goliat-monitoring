@@ -185,10 +185,22 @@ export async function POST(request: NextRequest) {
       })
       
       // Add new log message
+      // Convert UNIX timestamp (seconds) to ISO string if needed
+      let logTimestamp: string
+      if (typeof timestamp === 'number') {
+        // Python sends time.time() which is seconds since epoch
+        // JavaScript Date expects milliseconds, so multiply by 1000
+        logTimestamp = new Date(timestamp * 1000).toISOString()
+      } else if (timestamp) {
+        logTimestamp = timestamp
+      } else {
+        logTimestamp = new Date().toISOString()
+      }
+      
       logMessages.push({
         message: message.message,
         logType: logType,
-        timestamp: timestamp || new Date().toISOString()
+        timestamp: logTimestamp
       })
       
       // Update counts for new message
