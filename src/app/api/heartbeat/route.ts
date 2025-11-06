@@ -28,6 +28,33 @@ export async function POST(request: NextRequest) {
           }
         })
 
+        // If no worker found by IP, but we have a hostname, try matching by hostname
+        // This handles VPN IP changes where the same machine gets a different IP
+        if (!worker && hostname) {
+          worker = await prisma.worker.findFirst({
+            where: {
+              hostname: hostname,
+              isStale: false,
+              lastSeen: {
+                gte: fiveMinutesAgo // Only match if seen recently (within 5 min)
+              }
+            },
+            orderBy: {
+              lastSeen: 'desc'
+            }
+          })
+
+          // If found by hostname, update its IP to the new one
+          if (worker) {
+            await prisma.worker.update({
+              where: { id: worker.id },
+              data: {
+                ipAddress: machineId // Update to new IP
+              }
+            })
+          }
+        }
+
         // If worker exists but hasn't been seen in 5 minutes, mark as stale
         if (worker && worker.lastSeen < fiveMinutesAgo) {
           // Mark old worker as stale (assignments will be transferred to new worker below)
@@ -52,11 +79,13 @@ export async function POST(request: NextRequest) {
             }
           })
 
-          // Transfer any RUNNING assignments from stale workers with same IP to this new worker
+          // Transfer any RUNNING assignments from stale workers with same IP OR hostname to this new worker
           const staleWorkers = await prisma.worker.findMany({
             where: {
-              ipAddress: machineId,
-              isStale: true
+              OR: [
+                { ipAddress: machineId, isStale: true },
+                ...(hostname ? [{ hostname: hostname, isStale: true }] : [])
+              ]
             }
           })
 

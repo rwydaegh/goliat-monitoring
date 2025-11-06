@@ -43,33 +43,67 @@ export async function POST(request: NextRequest) {
     }
 
     if (!worker) {
-      // Create new worker with new session
-      worker = await prisma.worker.create({
-        data: {
-          ipAddress: machineId,
-          status: 'IDLE',
-          isStale: false
-        }
-      })
-
-      // Transfer any RUNNING assignments from stale workers with same IP to this new worker
-      const staleWorkers = await prisma.worker.findMany({
+      // Before creating new worker, check if there's a very recent worker (likely from claim)
+      // that has a RUNNING assignment but hasn't been updated - this handles IP changes
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000)
+      const recentWorkerWithAssignment = await prisma.worker.findFirst({
         where: {
-          ipAddress: machineId,
-          isStale: true
+          isStale: false,
+          createdAt: {
+            gte: twoMinutesAgo // Created within last 2 minutes
+          },
+          assignments: {
+            some: {
+              status: 'RUNNING'
+            }
+          },
+          // Hasn't been updated recently (no GUI data yet)
+          lastSeen: {
+            lt: new Date(Date.now() - 30 * 1000) // Older than 30 seconds
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
         }
       })
 
-      for (const staleWorker of staleWorkers) {
-        await prisma.assignment.updateMany({
-          where: {
-            workerId: staleWorker.id,
-            status: 'RUNNING'
-          },
+      if (recentWorkerWithAssignment) {
+        // Use this worker instead of creating a new one, update its IP
+        worker = await prisma.worker.update({
+          where: { id: recentWorkerWithAssignment.id },
           data: {
-            workerId: worker.id
+            ipAddress: machineId // Update to new IP
           }
         })
+      } else {
+        // Create new worker with new session
+        worker = await prisma.worker.create({
+          data: {
+            ipAddress: machineId,
+            status: 'IDLE',
+            isStale: false
+          }
+        })
+
+        // Transfer any RUNNING assignments from stale workers with same IP
+        const staleWorkers = await prisma.worker.findMany({
+          where: {
+            ipAddress: machineId,
+            isStale: true
+          }
+        })
+
+        for (const staleWorker of staleWorkers) {
+          await prisma.assignment.updateMany({
+            where: {
+              workerId: staleWorker.id,
+              status: 'RUNNING'
+            },
+            data: {
+              workerId: worker.id
+            }
+          })
+        }
       }
     }
 
