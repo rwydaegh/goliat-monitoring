@@ -76,6 +76,8 @@ export default function SuperStudyDetail() {
   }, [studyId])
 
   const deleteSuperStudy = async () => {
+    if (!study) return
+    
     if (!confirm(`Are you sure you want to delete "${study.name}"? This will also delete all its assignments. This action cannot be undone.`)) {
       return
     }
