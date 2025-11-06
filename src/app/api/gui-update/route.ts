@@ -177,8 +177,58 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Handle status/log messages
-    if (messageType === 'status' && message.message) {
+    // Handle log_batch messages (batched logs for efficiency)
+    if (messageType === 'log_batch' && message.logs && Array.isArray(message.logs)) {
+      const logMessages = Array.isArray(guiState.logMessages) ? [...guiState.logMessages] : []
+      
+      // Track warnings and errors from existing logs
+      let warningCount = 0
+      let errorCount = 0
+      logMessages.forEach((log: any) => {
+        const lt = log.logType || 'default'
+        if (lt === 'warning' || lt === 'highlight') warningCount++
+        if (lt === 'error' || lt === 'fatal') errorCount++
+      })
+      
+      // Process each log in the batch (they're already in chronological order)
+      for (const logMsg of message.logs) {
+        const logType = logMsg.log_type || 'default'
+        
+        // Convert UNIX timestamp (seconds) to ISO string if needed
+        let logTimestamp: string
+        const logTs = logMsg.timestamp || timestamp
+        if (typeof logTs === 'number') {
+          // Python sends time.time() which is seconds since epoch
+          logTimestamp = new Date(logTs * 1000).toISOString()
+        } else if (logTs) {
+          logTimestamp = logTs
+        } else {
+          logTimestamp = new Date().toISOString()
+        }
+        
+        logMessages.push({
+          message: logMsg.message,
+          logType: logType,
+          timestamp: logTimestamp
+        })
+        
+        // Update counts
+        if (logType === 'warning' || logType === 'highlight') warningCount++
+        if (logType === 'error' || logType === 'fatal') errorCount++
+      }
+      
+      // Keep only last 100 log messages
+      while (logMessages.length > 100) {
+        logMessages.shift()
+      }
+      
+      updateData.logMessages = logMessages
+      updateData.warningCount = warningCount
+      updateData.errorCount = errorCount
+    }
+    
+    // Handle status/log messages (single log for backwards compatibility)
+    else if (messageType === 'status' && message.message) {
       const logMessages = Array.isArray(guiState.logMessages) ? [...guiState.logMessages] : []
       const logType = message.log_type || 'default'
       
