@@ -1,34 +1,28 @@
 -- Drop unique constraint on ipAddress if it still exists
--- This handles cases where the constraint name might be different
+-- This is a safety migration in case the previous migration didn't drop it properly
+
+-- First, try the standard Prisma constraint name
+ALTER TABLE "workers" DROP CONSTRAINT IF EXISTS "workers_ipAddress_key";
+
+-- Also try dropping any unique constraint on ipAddress using a more generic approach
 DO $$ 
+DECLARE
+    constraint_name text;
 BEGIN
-    -- Try to drop the constraint if it exists
-    IF EXISTS (
-        SELECT 1 
-        FROM pg_constraint 
-        WHERE conname = 'workers_ipAddress_key' 
-        AND conrelid = 'workers'::regclass
-    ) THEN
-        ALTER TABLE "workers" DROP CONSTRAINT "workers_ipAddress_key";
-    END IF;
+    -- Find any unique constraint on ipAddress column
+    SELECT conname INTO constraint_name
+    FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey)
+    WHERE t.relname = 'workers'
+    AND a.attname = 'ipAddress'
+    AND c.contype = 'u'
+    LIMIT 1;
     
-    -- Also try alternative constraint names that PostgreSQL might use
-    IF EXISTS (
-        SELECT 1 
-        FROM pg_constraint 
-        WHERE conname LIKE '%ipAddress%' 
-        AND conrelid = 'workers'::regclass
-        AND contype = 'u'
-    ) THEN
-        -- Find and drop any unique constraint on ipAddress
-        EXECUTE (
-            SELECT 'ALTER TABLE "workers" DROP CONSTRAINT ' || conname || ';'
-            FROM pg_constraint
-            WHERE conname LIKE '%ipAddress%'
-            AND conrelid = 'workers'::regclass
-            AND contype = 'u'
-            LIMIT 1
-        );
+    -- Drop it if found
+    IF constraint_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE "workers" DROP CONSTRAINT IF EXISTS %I', constraint_name);
     END IF;
 END $$;
+
 
