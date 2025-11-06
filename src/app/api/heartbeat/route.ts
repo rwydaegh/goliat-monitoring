@@ -28,7 +28,46 @@ export async function POST(request: NextRequest) {
           }
         })
 
-        // If no worker found by IP, but we have a hostname, try matching by hostname
+        // Priority 2: Check for recent workers with RUNNING assignments (likely from claim)
+        // This handles IP changes between claim and GUI start
+        if (!worker) {
+          const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000)
+          const thirtySecondsAgo = new Date(Date.now() - 30 * 1000)
+          
+          const recentWorkerWithAssignment = await prisma.worker.findFirst({
+            where: {
+              isStale: false,
+              createdAt: {
+                gte: twoMinutesAgo // Created within last 2 minutes
+              },
+              assignments: {
+                some: {
+                  status: 'RUNNING'
+                }
+              },
+              // Hasn't been updated recently (no GUI data yet)
+              lastSeen: {
+                lt: thirtySecondsAgo
+              }
+            },
+            orderBy: {
+              createdAt: 'desc'
+            }
+          })
+
+          if (recentWorkerWithAssignment) {
+            // Use this worker, update its IP and hostname
+            worker = await prisma.worker.update({
+              where: { id: recentWorkerWithAssignment.id },
+              data: {
+                ipAddress: machineId,
+                hostname: hostname || recentWorkerWithAssignment.hostname
+              }
+            })
+          }
+        }
+
+        // Priority 3: If no worker found by IP or recent assignment, try matching by hostname
         // This handles VPN IP changes where the same machine gets a different IP
         if (!worker && hostname) {
           worker = await prisma.worker.findFirst({
