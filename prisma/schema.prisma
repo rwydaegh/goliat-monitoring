@@ -68,8 +68,22 @@ model Assignment {
   worker       Worker? @relation(fields: [workerId], references: [id], onDelete: Cascade)
   superStudy   SuperStudy @relation(fields: [superStudyId], references: [id], onDelete: Cascade)
   progressEvents ProgressEvent[]
+  resultFiles  ResultFile[]
   
   @@map("assignments")
+}
+
+model ResultFile {
+  id           String     @id @default(uuid())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  filename     String
+  relativePath String
+  fileData     Bytes
+  fileSize     Int
+  createdAt    DateTime   @default(now())
+
+  @@map("result_files")
 }
 
 model ProgressEvent {
