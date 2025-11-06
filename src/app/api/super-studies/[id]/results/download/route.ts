@@ -59,20 +59,19 @@ export async function GET(
       }
     }
     
-    // Generate ZIP file as Uint8Array (compatible with NextResponse)
-    const zipBuffer = await zip.generateAsync({
-      type: 'uint8array',
+    // Generate ZIP file as Blob
+    const zipBlob = await zip.generateAsync({
+      type: 'blob',
       compression: 'DEFLATE',
       compressionOptions: { level: 6 }
     })
     
     // Return ZIP file as download
-    return new NextResponse(zipBuffer, {
+    return new NextResponse(zipBlob, {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${superStudy.name}_results.zip"`,
-        'Content-Length': zipBuffer.length.toString()
+        'Content-Disposition': `attachment; filename="${superStudy.name}_results.zip"`
       }
     })
     
