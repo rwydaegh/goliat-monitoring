@@ -27,6 +27,64 @@ export async function GET(
       )
     }
 
+    // If worker is stale, try to find the active worker with the same IP address
+    if (worker.isStale) {
+      const activeWorker = await prisma.worker.findFirst({
+        where: {
+          ipAddress: worker.ipAddress,
+          isStale: false
+        },
+        orderBy: {
+          lastSeen: 'desc'
+        },
+        include: {
+          guiState: {
+            orderBy: {
+              updatedAt: 'desc'
+            },
+            take: 1
+          }
+        }
+      })
+
+      // If we found an active worker, use that instead
+      if (activeWorker) {
+        const latestGuiState = Array.isArray(activeWorker.guiState) && activeWorker.guiState.length > 0
+          ? activeWorker.guiState[0]
+          : null
+
+        return NextResponse.json({
+          worker: {
+            id: activeWorker.id,
+            ipAddress: activeWorker.ipAddress,
+            hostname: activeWorker.hostname,
+            status: activeWorker.status,
+            lastSeen: activeWorker.lastSeen,
+            machineLabel: activeWorker.machineLabel,
+            gpuName: activeWorker.gpuName,
+            cpuCores: activeWorker.cpuCores,
+            totalRamGB: activeWorker.totalRamGB,
+            createdAt: activeWorker.createdAt
+          },
+          guiState: latestGuiState ? {
+            id: latestGuiState.id,
+            workerId: latestGuiState.workerId,
+            stage: latestGuiState.stage,
+            progress: latestGuiState.progress,
+            stageProgress: latestGuiState.stageProgress || 0,
+            logMessages: latestGuiState.logMessages,
+            eta: latestGuiState.eta,
+            status: latestGuiState.status,
+            warningCount: latestGuiState.warningCount || 0,
+            errorCount: latestGuiState.errorCount || 0,
+            updatedAt: latestGuiState.updatedAt
+          } : null,
+          redirectedFromStale: true,
+          staleWorkerId: worker.id
+        })
+      }
+    }
+
     // Check if worker is stale (RUNNING but no heartbeat for >15 seconds)
     const now = new Date()
     const fifteenSecondsAgo = new Date(now.getTime() - 15 * 1000)

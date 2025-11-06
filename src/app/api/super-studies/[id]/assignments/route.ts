@@ -21,7 +21,11 @@ export async function GET(
             id: true,
             ipAddress: true,
             hostname: true,
-            machineLabel: true
+            machineLabel: true,
+            gpuName: true,
+            cpuCores: true,
+            totalRamGB: true,
+            isStale: true
           }
         }
       }

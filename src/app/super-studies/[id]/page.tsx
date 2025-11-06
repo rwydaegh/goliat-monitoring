@@ -19,6 +19,10 @@ interface Assignment {
     ipAddress: string
     hostname?: string
     machineLabel?: string
+    gpuName?: string
+    cpuCores?: number
+    totalRamGB?: number
+    isStale?: boolean
   }
 }
 
@@ -273,7 +277,14 @@ export default function SuperStudyDetail() {
                     {assignment.worker ? (
                       <div className="flex items-center">
                         <User className="h-4 w-4 mr-2 text-gray-400" />
-                        <span>{assignment.worker.machineLabel || assignment.worker.hostname || assignment.worker.ipAddress}</span>
+                        <span>
+                          {assignment.worker.gpuName && assignment.worker.gpuName !== 'N/A'
+                            ? assignment.worker.gpuName
+                            : (assignment.worker.machineLabel || assignment.worker.hostname || assignment.worker.ipAddress)}
+                        </span>
+                        {assignment.worker.isStale && (
+                          <span className="ml-2 text-xs text-gray-400 italic">(stale)</span>
+                        )}
                       </div>
                     ) : (
                       <span className="text-gray-400 italic">Unassigned</span>

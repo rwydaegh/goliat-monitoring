@@ -56,6 +56,13 @@ export default function WorkerDetail() {
         }
         
         const data = await response.json()
+        
+        // If we were redirected from a stale worker, update the URL
+        if (data.redirectedFromStale && data.worker.id !== workerId) {
+          router.replace(`/workers/${data.worker.id}`, { scroll: false })
+          return // Don't set state yet, let the new URL trigger a new fetch
+        }
+        
         setWorker(data.worker)
         setGuiState(data.guiState)
         setLoading(false)
