@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
         masterProgress: 0,
         assignments: {
           create: assignments.map((assignment: any, index: number) => ({
+            index: index,
             splitConfig: assignment.splitConfig,
             status: assignment.status || 'PENDING',
             progress: 0

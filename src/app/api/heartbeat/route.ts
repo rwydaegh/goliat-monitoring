@@ -16,12 +16,29 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        // Find or create worker
-        let worker = await prisma.worker.findUnique({
-          where: { ipAddress: machineId }
+        // Check for existing non-stale workers with same IP
+        const oneMinuteAgo = new Date(Date.now() - 60 * 1000)
+        let worker = await prisma.worker.findFirst({
+          where: {
+            ipAddress: machineId,
+            isStale: false
+          },
+          orderBy: {
+            lastSeen: 'desc'
+          }
         })
 
+        // If worker exists but hasn't been seen in 1 minute, mark as stale
+        if (worker && worker.lastSeen < oneMinuteAgo) {
+          await prisma.worker.update({
+            where: { id: worker.id },
+            data: { isStale: true }
+          })
+          worker = null // Force creation of new worker
+        }
+
         if (!worker) {
+          // Create new worker with new session
           worker = await prisma.worker.create({
             data: {
               ipAddress: machineId,
@@ -29,13 +46,14 @@ export async function POST(request: NextRequest) {
               gpuName: gpuName || null,
               cpuCores: cpuCores || null,
               totalRamGB: totalRamGB || null,
-              status: 'IDLE'
+              status: 'IDLE',
+              isStale: false
             }
           })
         } else {
-          // Update worker with system info
+          // Update existing active worker with system info
           await prisma.worker.update({
-            where: { ipAddress: machineId },
+            where: { id: worker.id },
             data: {
               lastSeen: new Date(),
               hostname: hostname || worker.hostname,
@@ -81,8 +99,15 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const worker = await prisma.worker.findUnique({
-      where: { ipAddress },
+    // Find most recent non-stale worker with this IP
+    const worker = await prisma.worker.findFirst({
+      where: {
+        ipAddress,
+        isStale: false
+      },
+      orderBy: {
+        lastSeen: 'desc'
+      },
       include: {
         guiState: true,
         assignments: {
@@ -106,7 +131,7 @@ export async function GET(request: NextRequest) {
 
     if (isOffline && worker.status !== 'OFFLINE') {
       await prisma.worker.update({
-        where: { ipAddress },
+        where: { id: worker.id },
         data: { status: 'OFFLINE' }
       })
     }

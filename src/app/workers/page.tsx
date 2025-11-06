@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Computer, Activity, Clock, CheckCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Computer, Activity, Clock, CheckCircle, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 
 interface Worker {
@@ -27,6 +28,7 @@ interface Worker {
 export default function WorkersPage() {
   const [workers, setWorkers] = useState<Worker[]>([])
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     const fetchWorkers = async () => {
@@ -105,6 +107,26 @@ export default function WorkersPage() {
     if (diffMins < 60) return `${diffMins}m ago`
     const diffHours = Math.floor(diffMins / 60)
     return `${diffHours}h ago`
+  }
+
+  const deleteWorker = async (workerId: string) => {
+    if (!confirm('Are you sure you want to delete this worker? This will also delete all its associated data (GUI state, progress events, assignments). This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/workers/${workerId}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) {
+        throw new Error('Failed to delete worker')
+      }
+      // Remove from local state
+      setWorkers(workers.filter(w => w.id !== workerId))
+    } catch (error) {
+      console.error('Error deleting worker:', error)
+      alert('Failed to delete worker')
+    }
   }
 
   if (loading) {
@@ -240,12 +262,20 @@ export default function WorkersPage() {
                       {formatLastSeen(worker.lastSeen)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <Link 
-                        href={`/workers/${worker.id}`} 
-                        className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm"
-                      >
-                        View Details
-                      </Link>
+                      <div className="flex items-center space-x-2">
+                        <Link 
+                          href={`/workers/${worker.id}`} 
+                          className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm"
+                        >
+                          View Details
+                        </Link>
+                        <button
+                          onClick={() => deleteWorker(worker.id)}
+                          className="inline-flex items-center justify-center px-3 py-2 text-sm font-semibold text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                   ))

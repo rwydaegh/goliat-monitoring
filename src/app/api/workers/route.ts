@@ -8,7 +8,11 @@ type WorkerWithGuiState = Prisma.WorkerGetPayload<{
 
 export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    const includeStale = searchParams.get('includeStale') === 'true'
+
     const workers = await prisma.worker.findMany({
+      where: includeStale ? {} : { isStale: false },
       orderBy: {
         lastSeen: 'desc'
       },
@@ -93,15 +97,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if worker already exists
-    const existingWorker = await prisma.worker.findUnique({
-      where: { ipAddress }
+    // Check if worker already exists (non-stale)
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000)
+    const existingWorker = await prisma.worker.findFirst({
+      where: {
+        ipAddress,
+        isStale: false
+      },
+      orderBy: {
+        lastSeen: 'desc'
+      }
     })
 
-    if (existingWorker) {
-      // Update existing worker
+    // If worker exists but hasn't been seen in 1 minute, mark as stale
+    if (existingWorker && existingWorker.lastSeen < oneMinuteAgo) {
+      await prisma.worker.update({
+        where: { id: existingWorker.id },
+        data: { isStale: true }
+      })
+    }
+
+    if (existingWorker && existingWorker.lastSeen >= oneMinuteAgo) {
+      // Update existing active worker
       const updatedWorker = await prisma.worker.update({
-        where: { ipAddress },
+        where: { id: existingWorker.id },
         data: {
           hostname,
           machineLabel,
@@ -112,13 +131,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(updatedWorker)
     }
 
-    // Create new worker
+    // Create new worker with new session
     const newWorker = await prisma.worker.create({
       data: {
         ipAddress,
         hostname,
         machineLabel,
-        status: 'IDLE'
+        status: 'IDLE',
+        isStale: false
       }
     })
 

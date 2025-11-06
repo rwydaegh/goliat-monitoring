@@ -20,16 +20,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Find or create worker
-    let worker = await prisma.worker.findUnique({
-      where: { ipAddress: machineId }
+    // Find or create worker (use most recent non-stale worker)
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000)
+    let worker = await prisma.worker.findFirst({
+      where: {
+        ipAddress: machineId,
+        isStale: false
+      },
+      orderBy: {
+        lastSeen: 'desc'
+      }
     })
 
+    // If worker exists but hasn't been seen in 1 minute, mark as stale
+    if (worker && worker.lastSeen < oneMinuteAgo) {
+      await prisma.worker.update({
+        where: { id: worker.id },
+        data: { isStale: true }
+      })
+      worker = null // Force creation of new worker
+    }
+
     if (!worker) {
+      // Create new worker with new session
       worker = await prisma.worker.create({
         data: {
           ipAddress: machineId,
-          status: 'IDLE'
+          status: 'IDLE',
+          isStale: false
         }
       })
     }
@@ -46,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     // Update worker status
     await prisma.worker.update({
-      where: { ipAddress: machineId },
+      where: { id: worker.id },
       data: {
         status: workerStatus,
         lastSeen: new Date()

@@ -13,7 +13,7 @@ export async function GET(
         superStudyId
       },
       orderBy: {
-        createdAt: 'asc'
+        index: 'asc'
       },
       include: {
         worker: {

@@ -82,3 +82,31 @@ export async function GET(
   }
 }
 
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: workerId } = await params
+
+    // Delete worker (cascade delete will handle guiState, assignments, progressEvents)
+    await prisma.worker.delete({
+      where: { id: workerId }
+    })
+
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Worker deleted successfully' 
+    })
+  } catch (error) {
+    console.error('Error deleting worker:', error)
+    return NextResponse.json(
+      {
+        error: 'Failed to delete worker',
+        details: error instanceof Error ? error.message : String(error)
+      },
+      { status: 500 }
+    )
+  }
+}
+

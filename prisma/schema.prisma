@@ -12,7 +12,9 @@ datasource db {
 
 model Worker {
   id            String   @id @default(uuid())
-  ipAddress     String   @unique
+  ipAddress     String
+  sessionId     String   @default(uuid()) @unique
+  isStale       Boolean  @default(false)
   hostname      String?
   status        WorkerStatus @default(IDLE)
   lastSeen      DateTime @default(now())
@@ -49,6 +51,7 @@ model SuperStudy {
 
 model Assignment {
   id           String   @id @default(uuid())
+  index        Int      @default(0)
   workerId     String?
   superStudyId String
   splitConfig  Json

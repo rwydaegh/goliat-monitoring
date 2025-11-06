@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Computer, Activity, Clock, ArrowLeft } from 'lucide-react'
+import { Computer, Activity, Clock, ArrowLeft, Trash2 } from 'lucide-react'
 
 interface Worker {
   id: string
@@ -114,6 +114,25 @@ export default function WorkerDetail() {
     return `${diffHours}h ago`
   }
 
+  const deleteWorker = async () => {
+    if (!confirm(`Are you sure you want to delete this worker? This will also delete all its associated data (GUI state, progress events, assignments). This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/workers/${workerId}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) {
+        throw new Error('Failed to delete worker')
+      }
+      router.push('/workers')
+    } catch (error) {
+      console.error('Error deleting worker:', error)
+      alert('Failed to delete worker')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -154,10 +173,21 @@ export default function WorkerDetail() {
           <p className="text-sm text-gray-600 mt-1">IP: {worker.ipAddress}</p>
         </div>
         <div className="text-right">
-          <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(worker.status)}`}>
-            {worker.status.toLowerCase()}
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={deleteWorker}
+              className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded hover:bg-red-700 flex items-center"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </button>
+            <div>
+              <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(worker.status)}`}>
+                {worker.status.toLowerCase()}
+              </div>
+              <p className="text-sm text-gray-500 mt-2">Last seen: {formatLastSeen(worker.lastSeen)}</p>
+            </div>
           </div>
-          <p className="text-sm text-gray-500 mt-2">Last seen: {formatLastSeen(worker.lastSeen)}</p>
         </div>
       </div>
 

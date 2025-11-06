@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Layers, Clock, CheckCircle, XCircle, AlertCircle, User, ArrowLeft } from 'lucide-react'
+import Link from 'next/link'
+import { Layers, Clock, CheckCircle, XCircle, AlertCircle, User, ArrowLeft, Trash2 } from 'lucide-react'
 
 interface Assignment {
   id: string
+  index: number
   status: string
   progress: number
   currentStage?: string
@@ -73,18 +75,22 @@ export default function SuperStudyDetail() {
     return () => clearInterval(interval)
   }, [studyId])
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return 'bg-green-100 text-green-800'
-      case 'running':
-        return 'bg-blue-100 text-blue-800'
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'failed':
-        return 'bg-red-100 text-red-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
+  const deleteSuperStudy = async () => {
+    if (!confirm(`Are you sure you want to delete "${study.name}"? This will also delete all its assignments. This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/super-studies/${studyId}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) {
+        throw new Error('Failed to delete super study')
+      }
+      router.push('/super-studies')
+    } catch (error) {
+      console.error('Error deleting super study:', error)
+      alert('Failed to delete super study')
     }
   }
 
@@ -128,6 +134,13 @@ export default function SuperStudyDetail() {
           )}
         </div>
         <div className="flex items-center space-x-3">
+          <button
+            onClick={deleteSuperStudy}
+            className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded hover:bg-red-700 flex items-center"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete
+          </button>
           <button
             onClick={() => {
               if (!study.baseConfig) {
@@ -229,10 +242,10 @@ export default function SuperStudyDetail() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {study.assignments.map((assignment, index) => (
+              {study.assignments.map((assignment) => (
                 <tr key={assignment.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {index}
+                    {assignment.index}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(assignment.status)}`}>
@@ -269,12 +282,12 @@ export default function SuperStudyDetail() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center space-x-2">
                       {assignment.worker && (
-                        <a
+                        <Link
                           href={`/workers/${assignment.worker.id}`}
                           className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors shadow-sm"
                         >
                           View Worker
-                        </a>
+                        </Link>
                       )}
                       <button
                         onClick={() => {
@@ -283,7 +296,7 @@ export default function SuperStudyDetail() {
                           const url = URL.createObjectURL(blob)
                           const a = document.createElement('a')
                           a.href = url
-                          a.download = `${study.name}_assignment_${index}.json`
+                          a.download = `${study.name}_assignment_${assignment.index}.json`
                           a.click()
                           URL.revokeObjectURL(url)
                         }}

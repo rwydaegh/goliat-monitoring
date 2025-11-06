@@ -12,6 +12,9 @@ export async function GET(
       where: { id },
       include: {
         assignments: {
+          orderBy: {
+            index: 'asc'
+          },
           include: {
             worker: {
               select: {
