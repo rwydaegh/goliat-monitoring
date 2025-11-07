@@ -48,14 +48,25 @@ export async function GET(
       if (assignment.resultFiles.length === 0) continue
       
       for (const resultFile of assignment.resultFiles) {
+        // Clean up relativePath: remove leading ..\ or ../
+        let cleanPath = resultFile.relativePath || ''
+        // Remove leading ..\ or ../ and normalize separators
+        cleanPath = cleanPath.replace(/^\.\.[/\\]/, '').replace(/\\/g, '/')
+        
         // Construct path: relativePath/filename
         // Example: near_field/thelonious/700MHz/by_belly_up_vertical/config.json
-        const filePath = resultFile.relativePath 
-          ? `${resultFile.relativePath}/${resultFile.filename}`
+        const filePath = cleanPath 
+          ? `${cleanPath}/${resultFile.filename}`
           : resultFile.filename
         
+        // Convert fileData to Buffer if it's not already
+        // PostgreSQL BYTEA returns as Buffer, but ensure it's the right type
+        const fileBuffer = Buffer.isBuffer(resultFile.fileData) 
+          ? resultFile.fileData 
+          : Buffer.from(resultFile.fileData)
+        
         // Add file to zip with its relative path
-        zip.file(filePath, resultFile.fileData)
+        zip.file(filePath, fileBuffer)
       }
     }
     
