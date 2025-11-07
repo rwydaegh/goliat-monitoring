@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Layers, Clock, CheckCircle, XCircle, AlertCircle, User, ArrowLeft, Trash2 } from 'lucide-react'
+import { Layers, Clock, CheckCircle, XCircle, AlertCircle, User, ArrowLeft, Trash2, FolderOpen } from 'lucide-react'
+import FileExplorer from '@/app/components/FileExplorer'
 
 interface Assignment {
   id: string
@@ -49,6 +50,7 @@ export default function SuperStudyDetail() {
   const [study, setStudy] = useState<SuperStudy | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showFileExplorer, setShowFileExplorer] = useState(false)
 
   useEffect(() => {
     const fetchStudy = async () => {
@@ -161,6 +163,13 @@ export default function SuperStudyDetail() {
           >
             <Trash2 className="h-4 w-4 mr-2" />
             Delete
+          </button>
+          <button
+            onClick={() => setShowFileExplorer(true)}
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 flex items-center"
+          >
+            <FolderOpen className="h-4 w-4 mr-2" />
+            View Results
           </button>
           <button
             onClick={async () => {
@@ -391,6 +400,14 @@ export default function SuperStudyDetail() {
           Where &lt;N&gt; is the assignment index (0-{study.totalAssignments - 1})
         </p>
       </div>
+
+      {/* File Explorer Modal */}
+      {showFileExplorer && (
+        <FileExplorer
+          superStudyId={studyId}
+          onClose={() => setShowFileExplorer(false)}
+        />
+      )}
     </div>
   )
 }
