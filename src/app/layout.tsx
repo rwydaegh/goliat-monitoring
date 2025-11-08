@@ -7,6 +7,9 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'GOLIAT Monitoring Dashboard',
   description: 'Web-based monitoring dashboard for orchestrating and monitoring GOLIAT simulation studies across multiple worker machines',
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({
