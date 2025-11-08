@@ -92,34 +92,31 @@ export async function GET(
         
         // If assignment is RUNNING but has no worker assigned, it should be PENDING
         if (assignment.status === 'RUNNING' && !resolvedWorker) {
+          console.log(`[Status Fix] Assignment ${assignment.index} (${assignment.id}) is RUNNING but has no worker - setting to PENDING`)
           derivedStatus = 'PENDING'
         } else if (resolvedWorker && !resolvedWorker.isStale) {
           if (assignment.status === 'RUNNING' && resolvedWorker.status === 'IDLE') {
-            // Worker is idle but assignment shows as running - check if worker actually has any RUNNING assignment
-            const workerHasAnyRunningAssignment = await prisma.assignment.findFirst({
-              where: {
-                workerId: resolvedWorker.id,
-                status: 'RUNNING'
-              }
-            })
-            
-            // If worker is IDLE and doesn't have any RUNNING assignment, this assignment shouldn't be RUNNING
+            // Worker is IDLE but assignment shows as RUNNING - this is inconsistent
+            // Worker status is the source of truth: if worker is IDLE, they're not running anything
+            console.log(`[Status Fix] Assignment ${assignment.index} (${assignment.id}) is RUNNING but worker ${resolvedWorker.id} is IDLE - fixing status`)
             // Check if assignment was completed (has completedAt) or should be reset to PENDING
-            if (!workerHasAnyRunningAssignment) {
-              if (assignment.completedAt) {
-                // Assignment was completed but status wasn't updated
-                derivedStatus = 'COMPLETED'
-              } else {
-                // Assignment should be available to claim again
-                derivedStatus = 'PENDING'
-              }
+            if (assignment.completedAt) {
+              // Assignment was completed but status wasn't updated
+              console.log(`[Status Fix] Assignment ${assignment.index} has completedAt - setting to COMPLETED`)
+              derivedStatus = 'COMPLETED'
+            } else {
+              // Assignment should be available to claim again
+              console.log(`[Status Fix] Assignment ${assignment.index} has no completedAt - setting to PENDING`)
+              derivedStatus = 'PENDING'
             }
           } else if (assignment.status === 'RUNNING' && resolvedWorker.status === 'ERROR') {
             // Worker has error, assignment should reflect that
+            console.log(`[Status Fix] Assignment ${assignment.index} (${assignment.id}) is RUNNING but worker ${resolvedWorker.id} is ERROR - setting to FAILED`)
             derivedStatus = 'FAILED'
           }
         } else if (resolvedWorker && resolvedWorker.isStale && assignment.status === 'RUNNING') {
           // If worker is stale and assignment is RUNNING, check if it was completed
+          console.log(`[Status Fix] Assignment ${assignment.index} (${assignment.id}) is RUNNING but worker ${resolvedWorker.id} is STALE - fixing status`)
           if (assignment.completedAt) {
             derivedStatus = 'COMPLETED'
           } else {
