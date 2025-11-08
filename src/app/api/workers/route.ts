@@ -54,15 +54,17 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Update stale workers in database
+    // Update stale workers in database and track their IDs
+    const staleWorkerIds = new Set<string>()
     if (staleWorkers.length > 0) {
       await Promise.all(
-        staleWorkers.map((worker: WorkerWithGuiState) =>
-          prisma.worker.update({
+        staleWorkers.map((worker: WorkerWithGuiState) => {
+          staleWorkerIds.add(worker.id)
+          return prisma.worker.update({
             where: { id: worker.id },
             data: { status: 'IDLE' }
           })
-        )
+        })
       )
     }
 
@@ -74,8 +76,9 @@ export async function GET(request: NextRequest) {
         : (worker.guiState as any) || null  // Fallback if it's not an array
       
       // Determine displayed status using same heartbeat-based logic
-      let displayedStatus = worker.status
-      if (worker.status === 'RUNNING') {
+      // If worker was just marked as stale, use IDLE; otherwise check timeout
+      let displayedStatus = staleWorkerIds.has(worker.id) ? 'IDLE' : worker.status
+      if (displayedStatus === 'RUNNING') {
         const hasRunningAssignment = worker.assignments && worker.assignments.length > 0
         if (hasRunningAssignment && worker.lastSeen < sixtySecondsAgo) {
           displayedStatus = 'IDLE'
