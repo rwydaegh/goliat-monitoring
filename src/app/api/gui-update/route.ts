@@ -227,11 +227,7 @@ export async function POST(request: NextRequest) {
         if (logType === 'error' || logType === 'fatal') errorCount++
       }
       
-      // Keep only last 100 log messages
-      while (logMessages.length > 100) {
-        logMessages.shift()
-      }
-      
+      // Store all log messages (no limit)
       updateData.logMessages = logMessages
       updateData.warningCount = warningCount
       updateData.errorCount = errorCount
@@ -274,11 +270,7 @@ export async function POST(request: NextRequest) {
       if (logType === 'warning' || logType === 'highlight') warningCount++
       if (logType === 'error' || logType === 'fatal') errorCount++
       
-      // Keep only last 100 log messages
-      if (logMessages.length > 100) {
-        logMessages.shift()
-      }
-      
+      // Store all log messages (no limit)
       updateData.logMessages = logMessages
       updateData.warningCount = warningCount
       updateData.errorCount = errorCount

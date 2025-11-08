@@ -308,7 +308,7 @@ export default function WorkerDetail() {
             id="log-container"
             className="space-y-1 max-h-96 overflow-y-auto bg-gray-900 rounded p-4"
           >
-            {guiState.logMessages.slice(-50).map((log: any, idx: number) => {
+            {guiState.logMessages.map((log: any, idx: number) => {
               const logType = log.logType || 'default'
               // Map GOLIAT log types to colors matching status_manager.py
               const colorClass = 
