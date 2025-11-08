@@ -3,7 +3,10 @@ import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 
 type WorkerWithGuiState = Prisma.WorkerGetPayload<{
-  include: { guiState: true }
+  include: { 
+    guiState: true
+    assignments: true
+  }
 }>
 
 export async function GET(request: NextRequest) {
@@ -17,17 +20,39 @@ export async function GET(request: NextRequest) {
         lastSeen: 'desc'
       },
       include: {
-        guiState: true  // This will return an array, but due to unique constraint, there should only be one
+        guiState: true,  // This will return an array, but due to unique constraint, there should only be one
+        assignments: {
+          where: {
+            status: 'RUNNING'
+          }
+        }
       }
     })
 
-    // Update stale workers: if RUNNING and lastSeen > 15 seconds ago, mark as IDLE
+    // Update stale workers: use heartbeat-based logic
+    // - If worker has RUNNING assignment: use 60-second heartbeat timeout
+    // - If worker has no RUNNING assignment: use 15-second timeout (for workers that finished but didn't send 'finished')
     const now = new Date()
     const fifteenSecondsAgo = new Date(now.getTime() - 15 * 1000)
+    const sixtySecondsAgo = new Date(now.getTime() - 60 * 1000)
     
-    const staleWorkers = workers.filter((worker: WorkerWithGuiState) => 
-      worker.status === 'RUNNING' && worker.lastSeen < fifteenSecondsAgo
-    )
+    const staleWorkers = workers.filter((worker: WorkerWithGuiState) => {
+      if (worker.status !== 'RUNNING') {
+        return false
+      }
+      
+      const hasRunningAssignment = worker.assignments && worker.assignments.length > 0
+      
+      if (hasRunningAssignment) {
+        // Worker has RUNNING assignment - use heartbeat timeout (60 seconds)
+        // During isolve execution, heartbeats continue but no GUI updates
+        return worker.lastSeen < sixtySecondsAgo
+      } else {
+        // Worker has no RUNNING assignment - use shorter timeout (15 seconds)
+        // This catches workers that finished but didn't send 'finished' message
+        return worker.lastSeen < fifteenSecondsAgo
+      }
+    })
 
     // Update stale workers in database
     if (staleWorkers.length > 0) {
@@ -48,11 +73,22 @@ export async function GET(request: NextRequest) {
         ? worker.guiState[0]
         : (worker.guiState as any) || null  // Fallback if it's not an array
       
+      // Determine displayed status using same heartbeat-based logic
+      let displayedStatus = worker.status
+      if (worker.status === 'RUNNING') {
+        const hasRunningAssignment = worker.assignments && worker.assignments.length > 0
+        if (hasRunningAssignment && worker.lastSeen < sixtySecondsAgo) {
+          displayedStatus = 'IDLE'
+        } else if (!hasRunningAssignment && worker.lastSeen < fifteenSecondsAgo) {
+          displayedStatus = 'IDLE'
+        }
+      }
+      
       return {
         id: worker.id,
         ipAddress: worker.ipAddress,
         hostname: worker.hostname,
-        status: worker.status === 'RUNNING' && worker.lastSeen < fifteenSecondsAgo ? 'IDLE' : worker.status,
+        status: displayedStatus,
         lastSeen: worker.lastSeen,
         machineLabel: worker.machineLabel,
         gpuName: worker.gpuName,

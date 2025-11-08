@@ -16,6 +16,11 @@ export async function GET(
             updatedAt: 'desc'
           },
           take: 1
+        },
+        assignments: {
+          where: {
+            status: 'RUNNING'
+          }
         }
       }
     })
@@ -85,18 +90,28 @@ export async function GET(
       }
     }
 
-    // Check if worker is stale (RUNNING but no heartbeat for >15 seconds)
+    // Check if worker is stale using heartbeat-based logic
+    // - If worker has RUNNING assignment: use 60-second heartbeat timeout
+    // - If worker has no RUNNING assignment: use 15-second timeout
     const now = new Date()
     const fifteenSecondsAgo = new Date(now.getTime() - 15 * 1000)
+    const sixtySecondsAgo = new Date(now.getTime() - 60 * 1000)
     let workerStatus = worker.status
 
-    if (worker.status === 'RUNNING' && worker.lastSeen < fifteenSecondsAgo) {
-      workerStatus = 'IDLE'
-      // Update database
-      await prisma.worker.update({
-        where: { id: workerId },
-        data: { status: 'IDLE' }
-      })
+    if (worker.status === 'RUNNING') {
+      const hasRunningAssignment = worker.assignments && worker.assignments.length > 0
+      const shouldMarkIdle = hasRunningAssignment 
+        ? worker.lastSeen < sixtySecondsAgo  // Has RUNNING assignment - use heartbeat timeout
+        : worker.lastSeen < fifteenSecondsAgo  // No RUNNING assignment - use shorter timeout
+      
+      if (shouldMarkIdle) {
+        workerStatus = 'IDLE'
+        // Update database
+        await prisma.worker.update({
+          where: { id: workerId },
+          data: { status: 'IDLE' }
+        })
+      }
     }
 
     // Get latest GUI state (should only be one due to unique constraint, but handle as array)
