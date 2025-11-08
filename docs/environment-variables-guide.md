@@ -1,46 +1,66 @@
-# Environment Variables Guide
+# Environment variables
 
-## Web Monitoring (Hardcoded)
+Environment variables for configuring the monitoring dashboard and worker connections.
 
-**Note:** Web monitoring is now **hardcoded** into GOLIAT. No environment variables are needed for basic monitoring functionality.
+## Dashboard URL
 
-The dashboard URL is automatically set to: `https://goliat-monitoring.up.railway.app`
+Workers connect to the monitoring dashboard automatically. The default URL is:
 
-## Optional Environment Variables
-
-### For Cloud Execution (oSPARC)
-
-If you're using cloud execution via oSPARC:
-
-```bash
-export OSPARC_API_KEY=your_api_key
-export OSPARC_API_SECRET=your_api_secret
+```
+https://goliat.waves-ugent.be
 ```
 
-### For Phantom Downloads
+### Custom dashboard URL
 
-If phantom downloads require an email:
+To use a different dashboard URL, set on worker machines:
 
 ```bash
-export DOWNLOAD_EMAIL=your_email@example.com
+export GOLIAT_MONITORING_URL=https://your-dashboard.com
 ```
 
-## Connection Status Indicator
+This overrides the default URL. Workers will connect to your custom dashboard instead.
 
-The GOLIAT GUI now shows a connection status indicator in the top-right corner:
-- **Green dot** = Connected to dashboard ✅
-- **Red dot** = Disconnected (check network/Railway status) ❌
+## Railway deployment
 
-This helps you verify that web monitoring is working without checking logs.
+### Required variables
 
-## Verifying Connection
+Railway automatically sets these:
 
-1. **In GOLIAT GUI**: Look for green/red indicator in top-right corner
-2. **In Logs**: Look for "Web GUI bridge enabled" message
-3. **On Dashboard**: Worker should appear within 5-10 seconds
+```bash
+DATABASE_URL=${{Postgres.DATABASE_URL}}  # Auto-populated from PostgreSQL service
+NODE_ENV=production
+```
 
-## Troubleshooting
+No manual configuration needed.
 
-See [troubleshooting guide](./troubleshooting-worker-not-appearing.md) for more help.
+### Optional variables
 
+None required for basic operation. Add custom variables as needed for your deployment.
 
+## Worker configuration
+
+### Automatic connection
+
+No environment variables needed on worker machines. GOLIAT automatically:
+1. Detects machine IP (public or local)
+2. Connects to dashboard
+3. Sends heartbeats every 30 seconds
+4. Forwards GUI messages
+
+### Custom dashboard URL
+
+If using custom dashboard:
+
+```bash
+export GOLIAT_MONITORING_URL=https://your-dashboard.com
+```
+
+Set before running GOLIAT studies.
+
+## Verifying connection
+
+1. GOLIAT GUI: Green dot in top-right corner = connected
+2. Logs: Look for "Web GUI bridge enabled" message
+3. Dashboard: Worker should appear within 5-10 seconds
+
+See [troubleshooting guide](./troubleshooting-worker-not-appearing.md) for connection issues.

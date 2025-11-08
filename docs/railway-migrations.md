@@ -1,48 +1,35 @@
-# Database Migrations on Railway
+# Database migrations
 
-## Automatic Migrations (Recommended)
+Migrations run automatically during Railway deployment. The `build` script includes:
 
-**Migrations run automatically during the build process!** No manual steps needed.
-
-The `build` script in `package.json` includes:
 ```json
 "build": "prisma migrate deploy && prisma generate && next build"
 ```
 
-Railway automatically runs this on every deployment, so your database is always up-to-date.
+No manual steps required.
 
-## Manual Migration (If Needed)
+## Manual migration (if needed)
 
-If you need to run migrations manually:
+If migrations fail or you need to run manually:
 
-### Option 1: Railway CLI
-
+Option 1: Railway CLI
 ```bash
-npm install -g @railway/cli
-railway login
-railway link
 railway run npx prisma migrate deploy
 railway run npx prisma generate
 ```
 
-### Option 2: Trigger Redeploy
+Option 2: Trigger redeploy (Railway dashboard → Deploy tab → Redeploy)
 
-1. Make a small change to any file
-2. Commit and push
-3. Railway will redeploy and run migrations automatically
-
-### Option 3: Manual Redeploy
-
-1. Go to Railway dashboard
-2. Select your Next.js service
-3. Go to "Deploy" tab
-4. Click "Redeploy" or "Deploy Latest"
+Option 3: Make a small change, commit and push (triggers automatic redeploy)
 
 ## Verification
 
 After deployment, verify migrations worked:
 - Visit `https://your-app.railway.app/api/workers`
 - Should return JSON (empty array `[]` if no workers, but no errors)
-- No database connection errors in Railway logs
 
+## Troubleshooting
 
+- Check Railway build logs for Prisma errors
+- Verify PostgreSQL service is running
+- Ensure database connection string is correct

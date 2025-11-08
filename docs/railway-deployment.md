@@ -1,151 +1,114 @@
-# Railway Deployment Guide
+# Railway deployment
 
-## 🚀 Railway Deployment for Beginners
+Step-by-step guide for deploying the monitoring dashboard to Railway.
 
-This guide will walk you through deploying GOLIAT Monitoring Dashboard to Railway step by step.
+## Prerequisites
 
-### Prerequisites
-- GitHub account with the goliat-monitoring repository
+- GitHub account with access to goliat-monitoring repository
 - Railway account (free at [railway.app](https://railway.app))
 
 ## Step 1: Connect GitHub to Railway
 
 1. Go to [railway.app](https://railway.app) and sign up/login
-2. Click **"Deploy from GitHub repo"**
-3. Select your **goliat-monitoring** repository
-4. Railway will automatically detect it's a Next.js project
+2. Click "New Project" → "Deploy from GitHub repo"
+3. Select your goliat-monitoring repository
+4. Railway automatically detects Next.js project
 
-## Step 2: Add PostgreSQL Database
+## Step 2: Add PostgreSQL database
 
-1. In your Railway dashboard, click **"Add Service"**
-2. Select **"PostgreSQL"** from the database options
-3. Railway will automatically create and configure the database
-4. Note down the database connection string (you'll see it in the PostgreSQL service)
+1. In Railway dashboard, click "Add Service"
+2. Select "PostgreSQL" from database options
+3. Railway creates and configures database automatically
+4. Connection string available in PostgreSQL service variables
 
-## Step 3: Configure Environment Variables
+## Step 3: Configure environment variables
 
-1. In your Railway project dashboard, go to **"Variables"** tab
-2. Add these environment variables:
+Railway automatically links PostgreSQL connection string. Verify in "Variables" tab:
 
 ```bash
-# Database connection (auto-populated by Railway)
-DATABASE_URL=${{Postgres.DATABASE_URL}}
-
-# Environment
+DATABASE_URL=${{Postgres.DATABASE_URL}}  # Auto-populated
 NODE_ENV=production
-
-# Optional: API Key for worker authentication
-GOLIAT_API_KEY=your-secret-api-key-here
 ```
+
+No other environment variables required for basic operation.
 
 ## Step 4: Deploy
 
-1. Railway will automatically start building and deploying
-2. Watch the build logs in the Railway dashboard
-3. Once complete, you'll get a Railway-provided URL like: `https://your-app-name.railway.app`
+1. Railway automatically starts building and deploying
+2. Watch build logs in Railway dashboard
+3. Once complete, Railway provides URL: `https://your-app-name.railway.app`
 
-## Step 5: Database Migrations (Automatic)
+## Step 5: Database migrations
 
-**Database migrations run automatically during the build process!** No manual steps needed.
+Migrations run automatically during build. The `build` script includes:
 
-The build script includes:
 ```json
 "build": "prisma migrate deploy && prisma generate && next build"
 ```
 
-Railway will automatically:
-1. Run migrations on deploy
-2. Generate Prisma client
-3. Build the Next.js app
+Railway runs this on every deployment, keeping database up-to-date.
 
-## Step 6: Test Your Deployment
+## Step 6: Test deployment
 
 1. Visit your Railway URL
-2. You should see the dashboard with sample data
-3. The API endpoints should be working:
-   - `https://your-app.railway.app/api/workers`
-   - `https://your-app.railway.app/api/heartbeat`
+2. Dashboard should load (empty if no workers)
+3. Test API endpoints:
+   - `https://your-app.railway.app/api/workers` (should return `[]`)
+   - `https://your-app.railway.app/api/heartbeat` (should return error without params)
 
-## 🔧 Development Workflow
+## Custom domain
 
-### Local Development
-1. Clone your repository:
-   ```bash
-   git clone https://github.com/your-username/goliat-monitoring.git
-   cd goliat-monitoring
-   ```
+1. In Railway dashboard: Settings → Domains
+2. Add custom domain
+3. Follow Railway DNS configuration instructions
+4. Update `GOLIAT_MONITORING_URL` environment variable on workers if needed
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+## Railway pricing
 
-3. Set up local environment:
-   ```bash
-   cp .env.example .env.local
-   # Edit .env.local with your local database URL
-   ```
-
-4. Run database migrations:
-   ```bash
-   npx prisma migrate dev
-   npx prisma generate
-   ```
-
-5. Start development server:
-   ```bash
-   npm run dev
-   ```
-
-### Deploy Changes
-1. Make changes to your code
-2. Commit and push to GitHub:
-   ```bash
-   git add .
-   git commit -m "Your changes"
-   git push origin main
-   ```
-3. Railway will automatically redeploy!
-
-## 🎯 Custom Domain (Optional)
-
-1. In Railway dashboard, go to **"Settings"** → **"Domains"**
-2. Add your custom domain
-3. Follow Railway's DNS configuration instructions
-
-## 💰 Railway Pricing
-
-**Free Tier Includes:**
+Free tier includes:
 - 500 compute hours/month
 - $5 in monthly credits
-- 1GB database storage
+- PostgreSQL database (1GB storage)
 - Automatic HTTPS
 - Global CDN
 
-**Perfect for:** Development, testing, and small-scale deployments
+Sufficient for development and small-scale deployments.
 
-## 🆘 Troubleshooting
+## Troubleshooting
 
-### Build Fails
-- Check the build logs in Railway dashboard
-- Ensure all dependencies are in `package.json`
-- Verify Node.js version compatibility
+### Build fails
 
-### Database Connection Issues
-- Verify `DATABASE_URL` environment variable
-- Check that PostgreSQL service is running
-- Ensure migrations have been applied
+- Check build logs in Railway dashboard
+- Verify all dependencies in `package.json`
+- Check Node.js version compatibility (Next.js 14 requires Node 18+)
 
-### Workers Can't Connect
-- Check the heartbeat endpoint: `https://your-app.railway.app/api/heartbeat`
-- Verify CORS settings if needed
-- Check worker agent configuration
+### Database connection issues
 
-## Next Steps
+- Verify `DATABASE_URL` environment variable exists
+- Check PostgreSQL service is running
+- Ensure migrations completed (check build logs)
 
-1. **Configure Worker Agents**: Set up Python worker agents on your TensorDock VMs
-2. **Test Real-time Updates**: Create test super studies and monitor progress
-3. **Add Authentication**: Implement API keys or user auth if needed
-4. **Customize UI**: Modify the dashboard to your specific needs
+### Workers can't connect
 
-Your GOLIAT Monitoring Dashboard is now ready for production! 🎉
+- Test heartbeat endpoint: `https://your-app.railway.app/api/heartbeat`
+- Verify dashboard URL is accessible from worker machines
+- Check CORS settings if needed (not required by default)
+
+### Migrations not running
+
+- Check build logs for Prisma errors
+- Verify PostgreSQL service is running
+- Try manual redeploy: Deploy tab → Redeploy
+
+## Deploying changes
+
+1. Make code changes
+2. Commit and push to GitHub
+3. Railway automatically redeploys
+
+## Next steps
+
+1. Configure workers: Set `GOLIAT_MONITORING_URL` environment variable on worker machines (optional, defaults to `https://goliat.waves-ugent.be`)
+2. Test monitoring: Run a GOLIAT study and verify worker appears on dashboard
+3. Create super study: Test distributed execution workflow
+4. Monitor results: Verify result file uploads and downloads work

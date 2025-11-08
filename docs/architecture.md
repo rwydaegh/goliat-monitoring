@@ -1,169 +1,123 @@
-# GOLIAT Monitoring Dashboard - Architecture Overview
+# Architecture overview
 
-## Purpose
+Web-based monitoring dashboard for orchestrating and monitoring GOLIAT simulation studies across multiple worker machines. Provides centralized visibility into distributed execution, progress tracking, and result management.
 
-A web-based monitoring dashboard for orchestrating and monitoring GOLIAT simulation studies across multiple TensorDock Windows VMs. The system allows you to:
+## High-level architecture
 
-- See green/red status lights for each worker machine (IP-based identification)
-- View a minimal web replica of each worker's GUI (progress bars, logs, ETA)
-- Coordinate "super-studies" where a base config is split across multiple workers
-- Track master progress across all workers combined
-- Access simulation artifacts (JSON, PNG, pickle files) via download links
+![Architecture diagram](./architecture-diagram.svg)
 
-## High-Level Architecture
+## Technology stack
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Railway Dashboard (Next.js)                   │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │   Dashboard  │  │ Super-Study  │  │   Worker     │         │
-│  │   Overview   │  │   Manager    │  │   Details    │         │
-│  └──────────────┘  └──────────────┘  └──────────────┘         │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │              Next.js API Routes                          │  │
-│  │  /api/heartbeat  /api/gui-update  /api/assignment        │  │
-│  │  /api/workers   /api/super-studies  /api/artifacts      │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                          ▲                    ▲
-                          │                    │
-              ┌───────────┘                    └───────────┐
-              │                                            │
-┌─────────────▼──────────────┐         ┌─────────────────▼─────────────┐
-│   Railway PostgreSQL       │         │     Railway File Storage       │
-│   (State & Metadata)       │         │     (Artifacts)                 │
-│                            │         │                                 │
-│  - workers                 │         │  - config files                 │
-│  - super_studies           │         │  - result JSON/PNG/pickle      │
-│  - assignments             │         │  - log files                    │
-│  - progress_events         │         │                                 │
-│  - gui_state               │         │                                 │
-└────────────────────────────┘         └─────────────────────────────────┘
-              ▲
-              │
-              │ HTTP POST/GET
-              │
-┌─────────────┴─────────────────────────────────────────────────┐
-│              TensorDock Windows VMs (8-16 machines)            │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐ │
-│  │  Worker Agent (Python script)                             │ │
-│  │  - Polls /api/assignment for work                          │ │
-│  │  - Runs: goliat study <split_config>                      │ │
-│  │  - Forwards GUI queue messages to /api/gui-update         │ │
-│  │  - Sends heartbeat to /api/heartbeat every 5s             │ │
-│  │  - Uploads artifacts to /api/artifacts on completion     │ │
-│  └──────────────────────────────────────────────────────────┘ │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐ │
-│  │  GOLIAT Study Process (with GUI)                          │ │
-│  │  - ProgressGUI (PySide6) shows on-screen                  │ │
-│  │  - QueueHandler processes messages                        │ │
-│  │  - WebGUIBridge.enqueue() forwards to worker agent        │ │
-│  └──────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-```
+### Frontend
+- Framework: Next.js 14 (App Router)
+- Language: TypeScript
+- Styling: Tailwind CSS
+- State Management: React hooks + API polling (3-5 second intervals)
 
-## Technology Stack
+### Backend
+- Database: PostgreSQL (Railway)
+- ORM: Prisma
+- API: Next.js API Routes (serverless functions)
+- File Storage: PostgreSQL BYTEA columns (result files stored in database)
 
-### Frontend (Railway)
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **State Management**: React hooks + API polling/SSR
+### Worker integration
+- Language: Python 3.11+ (part of GOLIAT)
+- Dependencies: `requests` library
+- Integration: Built into GOLIAT GUI, no separate agent needed
 
-### Backend Services (Railway)
-- **Database**: Railway PostgreSQL - Free tier: 500 hours/month + $5 credit
-- **File Storage**: Railway Persistent Storage - 1GB included
-- **API**: Next.js API Routes (serverless functions)
+## Key design decisions
 
-### Worker Agent (Python)
-- **Language**: Python 3.11+
-- **Dependencies**: `requests` (for HTTP), existing GOLIAT packages
-- **Execution**: Simple script or batch file, no Windows service required
+### 1. Storage strategy
 
-## Key Design Decisions
+All data stored in PostgreSQL:
+- State/metadata: Workers, assignments, progress events, GUI state
+- Result files: Stored as BYTEA in `result_files` table (JSON, PNG, pickle files)
+- Rationale: Single database simplifies deployment, no separate file storage service needed
 
-### 1. Storage Strategy
-- **Railway PostgreSQL** for all state/metadata (workers, assignments, progress events)
-- **Railway Storage** for artifact storage (configs, results, logs)
-- **Rationale**: Everything within Railway ecosystem, excellent free tier for development
+### 2. Worker identification
 
-### 2. GUI Integration
-- **Both GUI and web updates**: Workers run with `use_gui=true` so RDP users see the native Qt GUI
-- **Message forwarding**: `QueueHandler` processes messages for GUI, then calls `WebGUIBridge.enqueue()` to forward copy to web
-- **No queue contention**: Bridge uses internal queue, doesn't drain multiprocessing queue
+- Primary: IP address (auto-detected by GOLIAT)
+- Fallback: Hostname matching for VPN reconnections
+- Session management: Workers get unique session IDs, stale workers (5+ minutes idle) are marked inactive
+- Assignment transfer: Running assignments transfer to new worker session if IP changes
 
-### 3. Worker Identification
-- **Primary key**: Public IP address (simple, unique per VM)
-- **Optional**: Custom name/label set in dashboard UI
-- **Heartbeat timeout**: 30 seconds (worker marked red if no heartbeat)
+### 3. Heartbeat system
 
-### 4. Super-Study Orchestration
-- **Split on dashboard**: Upload base config → server runs existing `goliat parallel` splitting logic
-- **Assignment**: Workers poll `/api/assignment?machineId=<ip>` → server assigns next unclaimed split
-- **Master progress**: Weighted average of all worker progress percentages
+- Interval: 30 seconds
+- Timeout: Workers marked offline if no heartbeat for 30+ seconds
+- Purpose: Track worker availability and detect disconnections
 
-### 5. Minimal Initial Features
-- ✅ Worker status lights (green/red)
-- ✅ Overall progress bar per worker
-- ✅ Stage progress per worker
-- ✅ Color-coded log viewer
-- ✅ Master progress bar (super-study level)
-- ✅ ETA display
-- ❌ Charts/graphs (future)
-- ❌ Screenshot streaming (future)
-- ❌ Artifact uploads (phase 2)
+### 4. Super study orchestration
 
-## Data Flow
+- Config splitting: Done client-side via `goliat super_study` command
+- Assignment claiming: Workers claim assignments via `/api/assignments/[id]/claim`
+- Progress aggregation: Master progress calculated from completed assignments
+- Result collection: Workers upload result files to `/api/assignments/[id]/results`
 
-### Worker Startup
-1. VM deployed manually via TensorDock
-2. Worker agent script installed/copied to VM
-3. Agent starts, sends initial heartbeat with IP
-4. Dashboard registers worker, shows as "idle" (yellow)
+### 5. Log storage
 
-### Study Assignment
-1. User creates super-study in dashboard, uploads base config
-2. Server splits config using existing `split_config()` logic
-3. Server stores split configs in Railway Storage, creates assignments in PostgreSQL
-4. Worker polls `/api/assignment` → receives split config JSON
-5. Worker saves config locally, starts `goliat study <config>`
+- Storage: All log messages stored in `gui_state.logMessages` JSON array
+- No limit: All logs retained (no truncation)
+- Display: UI shows all logs with scrolling container
 
-### Progress Updates
-1. GOLIAT study sends messages to multiprocessing queue
-2. `QueueHandler` processes message, updates Qt GUI
-3. `QueueHandler` calls `web_bridge.enqueue(msg)` 
-4. `WebGUIBridge` forwards message to worker agent's internal queue
-5. Worker agent POSTs to `/api/gui-update` (throttled to ~5Hz)
-6. Server stores in PostgreSQL `gui_state` table
-7. Dashboard polls `/api/workers` every 2-3 seconds, displays updates
+## Data flow
 
-### Completion
-1. Study finishes, sends `{"type": "finished"}` message
-2. Worker agent uploads artifacts to Railway Storage (optional)
-3. Worker agent marks assignment complete in PostgreSQL
-4. Dashboard shows worker as "idle" again
+### Worker connection
 
-## Scalability Considerations
+1. GOLIAT study starts with GUI enabled
+2. WebGUIBridge detects machine IP (public or local)
+3. Sends initial heartbeat to `/api/heartbeat`
+4. Dashboard creates or updates worker record
+5. Worker appears on dashboard as "idle"
 
-- **8-16 workers**: Well within Railway limits
-- **Update frequency**: Throttled to 5Hz per worker = ~40-80 req/s total (manageable)
-- **Storage**: 1GB included, plenty for development
-- **PostgreSQL**: 500 hours/month free tier sufficient for development
+### Progress updates
 
-## Security Notes
+1. GOLIAT sends messages to multiprocessing queue
+2. QueueHandler processes message, updates Qt GUI
+3. WebGUIBridge forwards message to `/api/gui-update`
+4. Server updates `gui_state` table (progress, stage, logs, ETA)
+5. Dashboard polls `/api/workers` every 3-5 seconds, displays updates
 
-- **No authentication initially**: Public access (as requested)
-- **Simple API key**: Optional shared secret in headers to prevent random spam
-- **Future**: Can add auth later if needed
+### Super study execution
 
-## Future Enhancements
+1. User runs `goliat super_study <config> --name <name> --num-splits N`
+2. Client splits config into N assignments, uploads to `/api/super-studies`
+3. Workers run `goliat worker <index> <name>`
+4. Worker fetches assignment config from `/api/assignments/[id]/claim`
+5. Worker claims assignment, runs simulation
+6. Progress updates sent to `/api/gui-update`
+7. On completion, result files uploaded to `/api/assignments/[id]/results`
+8. Assignment marked complete, super study progress updated
 
-- Screenshot streaming of GUI windows
-- Advanced charts/graphs (time series, comparisons)
-- WebSocket support for real-time updates (instead of polling)
-- Auto-retry failed assignments
-- Worker health metrics (CPU, RAM, GPU utilization)
-- Email/Slack notifications on completion
+### Result file management
+
+1. Workers upload result files after study completion
+2. Files stored in PostgreSQL `result_files` table (BYTEA)
+3. File tree built from `relativePath` and `filename`
+4. Users browse via file explorer component
+5. Individual files downloadable via `/api/super-studies/[id]/results/file`
+6. Bulk download via `/api/super-studies/[id]/results/download` (ZIP)
+
+## Scalability considerations
+
+- Worker capacity: Tested with 8-16 workers, scales to more
+- Update frequency: Throttled GUI updates (~5Hz per worker)
+- Database size: PostgreSQL handles result files efficiently (BYTEA)
+- Polling: Dashboard polls every 3-5 seconds (could use WebSockets for better scaling)
+
+## Security notes
+
+- No authentication: Public access (as designed)
+- IP-based identification: Workers identified by IP address
+- No sensitive data: No credentials transmitted, only simulation data
+
+## Current features
+
+- Worker status monitoring (online/idle/running/offline/error)
+- Real-time progress tracking (overall and stage-level)
+- Live log streaming with color coding
+- Super study orchestration
+- Result file storage and browsing
+- Assignment claiming and tracking
+- ETA estimation
+- Warning and error counting
