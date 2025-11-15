@@ -35,7 +35,7 @@ export async function POST(
     }
     
     // Prepare file data first (read into memory)
-    const fileData = []
+    const fileData: Array<{ filename: string; buffer: Buffer; size: number }> = []
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer())
       fileData.push({
@@ -56,7 +56,7 @@ export async function POST(
       })
       
       // Store each file
-      const created = []
+      const created: Array<{ id: string; filename: string; size: number }> = []
       for (const { filename, buffer, size } of fileData) {
         const resultFile = await tx.resultFile.create({
           data: {
