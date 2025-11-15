@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Computer, Activity, Clock, ArrowLeft, Trash2 } from 'lucide-react'
 
@@ -40,6 +40,11 @@ export default function WorkerDetail() {
   const [guiState, setGuiState] = useState<GuiState | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  // Track scroll position and log count for smart auto-scrolling
+  const logContainerRef = useRef<HTMLDivElement | null>(null)
+  const previousLogCountRef = useRef<number>(0)
+  const isUserAtBottomRef = useRef<boolean>(true)
 
   useEffect(() => {
     const fetchWorkerDetails = async () => {
@@ -66,14 +71,6 @@ export default function WorkerDetail() {
         setWorker(data.worker)
         setGuiState(data.guiState)
         setLoading(false)
-        
-        // Scroll log container to bottom (showing latest logs) after render
-        setTimeout(() => {
-          const logContainer = document.getElementById('log-container')
-          if (logContainer) {
-            logContainer.scrollTop = logContainer.scrollHeight
-          }
-        }, 100)
       } catch (error) {
         console.error('Error fetching worker details:', error)
         setError('Failed to fetch worker details')
@@ -82,6 +79,10 @@ export default function WorkerDetail() {
     }
 
     if (workerId) {
+      // Reset log count tracking when worker changes
+      previousLogCountRef.current = 0
+      isUserAtBottomRef.current = true
+      
       fetchWorkerDetails()
       
       // Poll for updates every 1 second for faster log updates
@@ -89,6 +90,61 @@ export default function WorkerDetail() {
       return () => clearInterval(interval)
     }
   }, [workerId])
+
+  // Track scroll position to determine if user is at bottom
+  useEffect(() => {
+    const logContainer = logContainerRef.current
+    if (!logContainer) return
+
+    const handleScroll = () => {
+      const threshold = 50 // pixels from bottom
+      const isAtBottom = 
+        logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight < threshold
+      isUserAtBottomRef.current = isAtBottom
+    }
+
+    logContainer.addEventListener('scroll', handleScroll)
+    // Check initial position
+    handleScroll()
+
+    return () => {
+      logContainer.removeEventListener('scroll', handleScroll)
+    }
+  }, [guiState?.logMessages])
+
+  // Smart auto-scroll: only scroll to bottom if user is already at bottom AND new logs arrived
+  useEffect(() => {
+    if (!guiState?.logMessages) return
+
+    const currentLogCount = guiState.logMessages.length
+    const previousLogCount = previousLogCountRef.current
+    const hasNewLogs = currentLogCount > previousLogCount
+    const isInitialLoad = previousLogCount === 0 && currentLogCount > 0
+
+    // Update the previous count
+    previousLogCountRef.current = currentLogCount
+
+    const logContainer = logContainerRef.current
+    if (!logContainer) return
+
+    // On initial load, always scroll to bottom
+    if (isInitialLoad) {
+      setTimeout(() => {
+        logContainer.scrollTop = logContainer.scrollHeight
+        isUserAtBottomRef.current = true
+      }, 0)
+      return
+    }
+
+    // After initial load, only auto-scroll if:
+    // 1. User is at/near the bottom
+    // 2. New logs actually arrived
+    if (hasNewLogs && isUserAtBottomRef.current) {
+      setTimeout(() => {
+        logContainer.scrollTop = logContainer.scrollHeight
+      }, 0)
+    }
+  }, [guiState?.logMessages])
 
   const getStatusColor = (status: string) => {
     const statusLower = status.toLowerCase()
@@ -305,6 +361,7 @@ export default function WorkerDetail() {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Logs</h2>
           <div 
+            ref={logContainerRef}
             id="log-container"
             className="space-y-1 max-h-96 overflow-y-auto bg-gray-900 rounded p-4"
           >

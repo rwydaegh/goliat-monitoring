@@ -34,33 +34,49 @@ export async function POST(
       )
     }
     
-    // Delete existing result files for this assignment (overwrite)
-    await prisma.resultFile.deleteMany({
-      where: { assignmentId }
-    })
-    
-    // Store each file
-    const savedFiles = []
+    // Prepare file data first (read into memory)
+    const fileData = []
     for (const file of files) {
-      const filename = file.name
       const buffer = Buffer.from(await file.arrayBuffer())
-      
-      const resultFile = await prisma.resultFile.create({
-        data: {
+      fileData.push({
+        filename: file.name,
+        buffer,
+        size: buffer.length
+      })
+    }
+    
+    // Atomically delete old files and create new ones in a transaction
+    const savedFiles = await prisma.$transaction(async (tx) => {
+      // Delete existing result files for this assignment and relativePath (only this simulation's files)
+      await tx.resultFile.deleteMany({
+        where: {
           assignmentId,
-          filename,
-          relativePath,
-          fileData: buffer,
-          fileSize: buffer.length
+          relativePath: relativePath || ''
         }
       })
       
-      savedFiles.push({
-        id: resultFile.id,
-        filename: resultFile.filename,
-        size: resultFile.fileSize
-      })
-    }
+      // Store each file
+      const created = []
+      for (const { filename, buffer, size } of fileData) {
+        const resultFile = await tx.resultFile.create({
+          data: {
+            assignmentId,
+            filename,
+            relativePath,
+            fileData: buffer,
+            fileSize: size
+          }
+        })
+        
+        created.push({
+          id: resultFile.id,
+          filename: resultFile.filename,
+          size: resultFile.fileSize
+        })
+      }
+      
+      return created
+    })
     
     return NextResponse.json({
       success: true,
