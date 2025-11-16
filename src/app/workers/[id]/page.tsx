@@ -45,6 +45,8 @@ export default function WorkerDetail() {
   const logContainerRef = useRef<HTMLDivElement | null>(null)
   const previousLogCountRef = useRef<number>(0)
   const isUserAtBottomRef = useRef<boolean>(true)
+  const shouldAutoScrollRef = useRef<boolean>(true) // Track if we should auto-scroll on next update
+  const scrollHandlerAttachedRef = useRef<boolean>(false) // Track if scroll handler is attached
 
   useEffect(() => {
     const fetchWorkerDetails = async () => {
@@ -82,6 +84,8 @@ export default function WorkerDetail() {
       // Reset log count tracking when worker changes
       previousLogCountRef.current = 0
       isUserAtBottomRef.current = true
+      shouldAutoScrollRef.current = true // Default to auto-scroll on new worker
+      scrollHandlerAttachedRef.current = false // Reset handler attachment tracking
       
       fetchWorkerDetails()
       
@@ -92,25 +96,35 @@ export default function WorkerDetail() {
   }, [workerId])
 
   // Track scroll position to determine if user is at bottom
+  // Attach scroll handler when container becomes available (only once, stays attached)
   useEffect(() => {
     const logContainer = logContainerRef.current
-    if (!logContainer) return
+    if (!logContainer || scrollHandlerAttachedRef.current) return
 
     const handleScroll = () => {
-      const threshold = 50 // pixels from bottom
-      const isAtBottom = 
-        logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight < threshold
+      // Check if scroll is at the very bottom (within 2 pixels for rounding errors)
+      const threshold = 2
+      const scrollBottom = logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight
+      const isAtBottom = scrollBottom <= threshold
+      
       isUserAtBottomRef.current = isAtBottom
+      // If user manually scrolls to bottom, enable auto-scroll
+      // If user scrolls away from bottom, disable auto-scroll
+      shouldAutoScrollRef.current = isAtBottom
     }
 
     logContainer.addEventListener('scroll', handleScroll)
+    scrollHandlerAttachedRef.current = true
     // Check initial position
     handleScroll()
 
     return () => {
-      logContainer.removeEventListener('scroll', handleScroll)
+      if (logContainer) {
+        logContainer.removeEventListener('scroll', handleScroll)
+      }
+      scrollHandlerAttachedRef.current = false
     }
-  }, [guiState?.logMessages])
+  }, [!!guiState?.logMessages?.length]) // Only re-run when container appears/disappears (not on every log update)
 
   // Smart auto-scroll: only scroll to bottom if user is already at bottom AND new logs arrived
   useEffect(() => {
@@ -121,29 +135,41 @@ export default function WorkerDetail() {
     const hasNewLogs = currentLogCount > previousLogCount
     const isInitialLoad = previousLogCount === 0 && currentLogCount > 0
 
-    // Update the previous count
-    previousLogCountRef.current = currentLogCount
-
     const logContainer = logContainerRef.current
     if (!logContainer) return
 
     // On initial load, always scroll to bottom
     if (isInitialLoad) {
-      setTimeout(() => {
-        logContainer.scrollTop = logContainer.scrollHeight
-        isUserAtBottomRef.current = true
-      }, 0)
+      // Use double requestAnimationFrame to ensure DOM has fully updated
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          logContainer.scrollTop = logContainer.scrollHeight
+          isUserAtBottomRef.current = true
+          shouldAutoScrollRef.current = true
+        })
+      })
+      previousLogCountRef.current = currentLogCount
       return
     }
 
     // After initial load, only auto-scroll if:
-    // 1. User is at/near the bottom
+    // 1. User was at the bottom (shouldAutoScrollRef is true)
     // 2. New logs actually arrived
-    if (hasNewLogs && isUserAtBottomRef.current) {
-      setTimeout(() => {
-        logContainer.scrollTop = logContainer.scrollHeight
-      }, 0)
+    if (hasNewLogs && shouldAutoScrollRef.current) {
+      // Use double requestAnimationFrame to ensure DOM has fully updated with new logs
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          logContainer.scrollTop = logContainer.scrollHeight
+          // After scrolling, verify we're still at bottom
+          const scrollBottom = logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight
+          isUserAtBottomRef.current = scrollBottom <= 2
+          shouldAutoScrollRef.current = scrollBottom <= 2
+        })
+      })
     }
+
+    // Update the previous count AFTER handling scroll
+    previousLogCountRef.current = currentLogCount
   }, [guiState?.logMessages])
 
   const getStatusColor = (status: string) => {
