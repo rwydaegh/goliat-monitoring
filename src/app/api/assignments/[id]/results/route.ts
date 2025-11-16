@@ -46,19 +46,60 @@ export async function POST(
     }
     
     // Atomically delete old files and create new ones in a transaction
-    const savedFiles = await prisma.$transaction(async (tx) => {
-      // Delete existing result files for this assignment and relativePath (only this simulation's files)
-      await tx.resultFile.deleteMany({
+    // Use extended timeout for large file uploads (60 seconds maxWait, 60 seconds timeout)
+    let savedFiles: Array<{ id: string; filename: string; size: number }>
+    try {
+      savedFiles = await prisma.$transaction(async (tx) => {
+        // Delete existing result files for this assignment and relativePath (only this simulation's files)
+        await tx.resultFile.deleteMany({
+          where: {
+            assignmentId,
+            relativePath: relativePath || ''
+          }
+        })
+        
+        // Store each file
+        const created: Array<{ id: string; filename: string; size: number }> = []
+        for (const { filename, buffer, size } of fileData) {
+          const resultFile = await tx.resultFile.create({
+            data: {
+              assignmentId,
+              filename,
+              relativePath,
+              fileData: buffer,
+              fileSize: size
+            }
+          })
+          
+          created.push({
+            id: resultFile.id,
+            filename: resultFile.filename,
+            size: resultFile.fileSize
+          })
+        }
+        
+        return created
+      }, {
+        maxWait: 60000, // 60 seconds to acquire transaction
+        timeout: 60000, // 60 seconds for transaction to complete
+      })
+    } catch (transactionError) {
+      // If transaction fails (e.g., timeout), fall back to non-atomic approach
+      // This ensures uploads succeed even if transaction times out
+      console.warn('Transaction failed, using fallback approach:', transactionError)
+      
+      // Delete old files first
+      await prisma.resultFile.deleteMany({
         where: {
           assignmentId,
           relativePath: relativePath || ''
         }
       })
       
-      // Store each file
-      const created: Array<{ id: string; filename: string; size: number }> = []
+      // Create files individually (not atomic, but more reliable)
+      savedFiles = []
       for (const { filename, buffer, size } of fileData) {
-        const resultFile = await tx.resultFile.create({
+        const resultFile = await prisma.resultFile.create({
           data: {
             assignmentId,
             filename,
@@ -68,15 +109,13 @@ export async function POST(
           }
         })
         
-        created.push({
+        savedFiles.push({
           id: resultFile.id,
           filename: resultFile.filename,
           size: resultFile.fileSize
         })
       }
-      
-      return created
-    })
+    }
     
     return NextResponse.json({
       success: true,
