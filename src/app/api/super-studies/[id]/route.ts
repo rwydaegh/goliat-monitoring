@@ -125,10 +125,16 @@ export async function GET(
           }
         }
 
+        // Parse splitConfig from string to JSON
+        const parsedSplitConfig = typeof resolvedAssignment.splitConfig === 'string' 
+          ? JSON.parse(resolvedAssignment.splitConfig) 
+          : resolvedAssignment.splitConfig
+
         return {
           ...resolvedAssignment,
           worker: resolvedWorker,
-          status: derivedStatus
+          status: derivedStatus,
+          splitConfig: parsedSplitConfig
         }
       })
     )

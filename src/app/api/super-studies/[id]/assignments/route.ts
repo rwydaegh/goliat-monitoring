@@ -35,7 +35,15 @@ export async function GET(
     const assignmentsWithResolvedWorkers = await Promise.all(
       assignments.map(async (assignment) => {
         if (!assignment.worker || !assignment.worker.isStale) {
-          return assignment
+          // Parse splitConfig from string to JSON
+          const parsedSplitConfig = typeof assignment.splitConfig === 'string' 
+            ? JSON.parse(assignment.splitConfig) 
+            : assignment.splitConfig
+          
+          return {
+            ...assignment,
+            splitConfig: parsedSplitConfig
+          }
         }
 
         // Find active worker with same IP
@@ -59,14 +67,23 @@ export async function GET(
           }
         })
 
+        // Parse splitConfig from string to JSON
+        const parsedSplitConfig = typeof assignment.splitConfig === 'string' 
+          ? JSON.parse(assignment.splitConfig) 
+          : assignment.splitConfig
+
         if (activeWorker) {
           return {
             ...assignment,
-            worker: activeWorker
+            worker: activeWorker,
+            splitConfig: parsedSplitConfig
           }
         }
 
-        return assignment
+        return {
+          ...assignment,
+          splitConfig: parsedSplitConfig
+        }
       })
     )
 

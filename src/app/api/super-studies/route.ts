@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
         assignments: {
           create: assignments.map((assignment: any, index: number) => ({
             index: index,
-            splitConfig: assignment.splitConfig,
+            splitConfig: JSON.stringify(assignment.splitConfig),
             status: assignment.status || 'PENDING',
             progress: 0
           }))
@@ -114,7 +114,18 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    return NextResponse.json(superStudy)
+    // Parse splitConfig from string to JSON for all assignments before returning
+    const superStudyWithParsedConfigs = {
+      ...superStudy,
+      assignments: superStudy.assignments.map((assignment: any) => ({
+        ...assignment,
+        splitConfig: typeof assignment.splitConfig === 'string' 
+          ? JSON.parse(assignment.splitConfig) 
+          : assignment.splitConfig
+      }))
+    }
+
+    return NextResponse.json(superStudyWithParsedConfigs)
   } catch (error) {
     console.error('Error creating super study:', error)
     return NextResponse.json(

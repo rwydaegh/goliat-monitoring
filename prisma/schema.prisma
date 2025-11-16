@@ -54,7 +54,7 @@ model Assignment {
   index        Int      @default(0)
   workerId     String?
   superStudyId String
-  splitConfig  Json
+  splitConfig  String   @db.Text
   status       AssignmentStatus @default(PENDING)
   progress     Float    @default(0)
   currentStage String?

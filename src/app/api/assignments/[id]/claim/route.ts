@@ -79,7 +79,15 @@ export async function POST(
       }
     })
 
-    return NextResponse.json(assignment)
+    // Parse splitConfig from string to JSON
+    const parsedSplitConfig = typeof assignment.splitConfig === 'string' 
+      ? JSON.parse(assignment.splitConfig) 
+      : assignment.splitConfig
+
+    return NextResponse.json({
+      ...assignment,
+      splitConfig: parsedSplitConfig
+    })
   } catch (error) {
     console.error('Error claiming assignment:', error)
     return NextResponse.json(
