@@ -6,12 +6,12 @@ import { Computer, Activity, Clock, ArrowLeft, Trash2 } from 'lucide-react'
 
 // GUI Screenshots Component
 function GuiScreenshots({ workerId }: { workerId: string }) {
-  const [activeTab, setActiveTab] = useState('Progress')
+  const [activeTab, setActiveTab] = useState('Timings')
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
   const [imageTimestamps, setImageTimestamps] = useState<Record<string, number>>({})
 
+  // Exclude 'Progress' tab - its data is already displayed via other widgets
   const tabNames = [
-    'Progress',
     'Timings',
     'Timings Piecharts',
     'Time Remaining',
