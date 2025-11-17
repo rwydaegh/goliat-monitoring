@@ -6,7 +6,7 @@ import { Computer, Activity, Clock, ArrowLeft, Trash2 } from 'lucide-react'
 
 // GUI Screenshots Component
 function GuiScreenshots({ workerId }: { workerId: string }) {
-  const [activeTab, setActiveTab] = useState('Timings')
+  const [activeTab, setActiveTab] = useState('System Utilization')
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
   const [imageTimestamps, setImageTimestamps] = useState<Record<string, number>>({})
 
