@@ -30,6 +30,11 @@ After deployment, verify migrations worked:
 
 ## Troubleshooting
 
-- Check Railway build logs for Prisma errors
-- Verify PostgreSQL service is running
-- Ensure database connection string is correct
+If migrations fail with `P1001: Can't reach database server`:
+
+1. **Check database service**: Ensure PostgreSQL service is running (not paused) in Railway
+2. **Verify linking**: Check that `DATABASE_URL` is set in your app service variables
+3. **Wait for retries**: The app automatically retries migrations up to 5 times with exponential backoff
+4. **Restart database**: If paused, click "Start" on your PostgreSQL service in Railway
+
+See [Database Connection Troubleshooting](./troubleshooting-database-connection.md) for detailed steps.
