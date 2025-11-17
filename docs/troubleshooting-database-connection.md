@@ -73,10 +73,22 @@ railway run npx prisma migrate deploy
 ## Common Causes
 
 1. **Database paused**: Most common after running out of credits
-2. **Services not linked**: App service can't access database
-3. **Wrong DATABASE_URL**: Connection string is incorrect
-4. **Database still starting**: Wait 30-60 seconds after starting
-5. **Network issues**: Temporary Railway infrastructure problems
+2. **Database resize**: After resizing database, service may need restart
+3. **Services not linked**: App service can't access database
+4. **Wrong DATABASE_URL**: Connection string is incorrect or outdated
+5. **Database still starting**: Wait 1-2 minutes after starting/restarting
+6. **Network issues**: Temporary Railway infrastructure problems
+
+## After Database Resize
+
+When you resize a Railway database:
+
+1. **Check service status**: Database may be paused or restarting
+2. **Restart database**: Click "Restart" on PostgreSQL service
+3. **Verify connection string**: Check if DATABASE_URL changed in Variables
+4. **Update app service**: Ensure DATABASE_URL points to resized database
+5. **Wait for startup**: Allow 1-2 minutes for database to fully start
+6. **Redeploy app**: Trigger a redeploy after database is running
 
 ## Retry Logic
 
