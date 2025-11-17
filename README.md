@@ -111,7 +111,7 @@ Configured for Railway deployment with PostgreSQL:
 3. Add PostgreSQL service
 4. Deploy
 
-Database migrations run automatically during the build process.
+Database migrations run automatically when the application starts.
 
 ## Technology stack
 

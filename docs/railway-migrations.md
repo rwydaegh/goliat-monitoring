@@ -1,12 +1,12 @@
 # Database migrations
 
-Migrations run automatically during Railway deployment. The `build` script includes:
+Migrations run automatically when the application starts on Railway. The `start` script includes:
 
 ```json
-"build": "prisma migrate deploy && prisma generate && next build"
+"start": "prisma migrate deploy && next start"
 ```
 
-No manual steps required.
+This ensures migrations run after the build completes and the database is accessible. No manual steps required.
 
 ## Manual migration (if needed)
 

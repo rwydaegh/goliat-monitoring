@@ -40,13 +40,13 @@ No other environment variables required for basic operation.
 
 ## Step 5: Database migrations
 
-Migrations run automatically during build. The `build` script includes:
+Migrations run automatically when the application starts. The `start` script includes:
 
 ```json
-"build": "prisma migrate deploy && prisma generate && next build"
+"start": "prisma migrate deploy && next start"
 ```
 
-Railway runs this on every deployment, keeping database up-to-date.
+This ensures migrations run after the build completes and the database is accessible, keeping the database up-to-date on every deployment.
 
 ## Step 6: Test deployment
 
