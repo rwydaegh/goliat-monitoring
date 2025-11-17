@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { rm } from 'fs/promises'
+import { join } from 'path'
+import { existsSync } from 'fs'
 
 export async function GET(
   request: NextRequest,
@@ -225,6 +228,17 @@ export async function DELETE(
             status: status
           }
         })
+      }
+    }
+
+    // Delete screenshot directory for this worker
+    const screenshotsDir = join(process.cwd(), 'public', 'gui-screenshots', workerId)
+    if (existsSync(screenshotsDir)) {
+      try {
+        await rm(screenshotsDir, { recursive: true, force: true })
+      } catch (error) {
+        console.error(`Failed to delete screenshot directory for worker ${workerId}:`, error)
+        // Continue with worker deletion even if screenshot cleanup fails
       }
     }
 

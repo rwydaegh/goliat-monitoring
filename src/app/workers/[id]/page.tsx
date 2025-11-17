@@ -4,6 +4,105 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Computer, Activity, Clock, ArrowLeft, Trash2 } from 'lucide-react'
 
+// GUI Screenshots Component
+function GuiScreenshots({ workerId }: { workerId: string }) {
+  const [activeTab, setActiveTab] = useState('Progress')
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
+  const [imageTimestamps, setImageTimestamps] = useState<Record<string, number>>({})
+
+  const tabNames = [
+    'Progress',
+    'Timings',
+    'Timings Piecharts',
+    'Time Remaining',
+    'Overall Progress',
+    'System Utilization'
+  ]
+
+  // Auto-refresh images every 1 second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Update timestamp to bust browser cache
+      const now = Date.now()
+      const newTimestamps: Record<string, number> = {}
+      tabNames.forEach(tabName => {
+        newTimestamps[tabName] = now
+      })
+      setImageTimestamps(newTimestamps)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  const handleImageError = (tabName: string) => {
+    setImageErrors(prev => new Set(prev).add(tabName))
+  }
+
+  const getImageUrl = (tabName: string) => {
+    const timestamp = imageTimestamps[tabName] || Date.now()
+    const sanitizedTabName = encodeURIComponent(tabName)
+    return `/api/gui-screenshots/${workerId}/${sanitizedTabName}?t=${timestamp}`
+  }
+
+  return (
+    <div className="w-full">
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200 mb-4">
+        <nav className="-mb-px flex space-x-8 overflow-x-auto">
+          {tabNames.map((tabName) => (
+            <button
+              key={tabName}
+              onClick={() => setActiveTab(tabName)}
+              className={`
+                whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                ${
+                  activeTab === tabName
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              {tabName === 'Timings Piecharts' ? 'Piecharts' : tabName}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      <div className="relative">
+        {tabNames.map((tabName) => (
+          <div
+            key={tabName}
+            className={activeTab === tabName ? 'block' : 'hidden'}
+          >
+            {imageErrors.has(tabName) ? (
+              <div className="flex items-center justify-center h-64 bg-gray-100 rounded border-2 border-dashed border-gray-300">
+                <div className="text-center">
+                  <p className="text-gray-500 text-sm">No screenshot available</p>
+                  <p className="text-gray-400 text-xs mt-1">Screenshots will appear when the worker is running</p>
+                </div>
+              </div>
+            ) : (
+              <div className="relative w-full bg-gray-100 rounded border border-gray-200 overflow-hidden">
+                <img
+                  src={getImageUrl(tabName)}
+                  alt={`${tabName} Screenshot`}
+                  onError={() => handleImageError(tabName)}
+                  className="w-full h-auto"
+                  style={{ maxHeight: '600px', objectFit: 'contain' }}
+                />
+                <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+                  {tabName}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 interface Worker {
   id: string
   ipAddress: string
@@ -420,6 +519,12 @@ export default function WorkerDetail() {
           </div>
         </div>
       )}
+
+      {/* GUI Screenshots Section */}
+      <div className="bg-white shadow rounded-lg p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">GUI Screenshots</h2>
+        <GuiScreenshots workerId={worker.id} />
+      </div>
 
       {/* Worker Info */}
       <div className="bg-white shadow rounded-lg p-6">
