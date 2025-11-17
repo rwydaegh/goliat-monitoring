@@ -127,6 +127,9 @@ interface GuiState {
   status: string
   warningCount?: number
   errorCount?: number
+  simulationCount?: number | null
+  totalSimulations?: number | null
+  currentCase?: string | null
   updatedAt: string
 }
 

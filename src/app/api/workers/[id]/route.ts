@@ -85,6 +85,9 @@ export async function GET(
             status: latestGuiState.status,
             warningCount: latestGuiState.warningCount || 0,
             errorCount: latestGuiState.errorCount || 0,
+            simulationCount: latestGuiState.simulationCount ?? null,
+            totalSimulations: latestGuiState.totalSimulations ?? null,
+            currentCase: latestGuiState.currentCase ?? null,
             updatedAt: latestGuiState.updatedAt
           } : null,
           redirectedFromStale: true,
@@ -146,6 +149,9 @@ export async function GET(
         status: latestGuiState.status,
         warningCount: latestGuiState.warningCount || 0,
         errorCount: latestGuiState.errorCount || 0,
+        simulationCount: latestGuiState.simulationCount ?? null,
+        totalSimulations: latestGuiState.totalSimulations ?? null,
+        currentCase: latestGuiState.currentCase ?? null,
         updatedAt: latestGuiState.updatedAt
       } : null
     })
