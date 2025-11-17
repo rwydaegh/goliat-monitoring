@@ -2,7 +2,7 @@
 
 Quick reference for testing dashboard API endpoints.
 
-## Test script
+## Test script 
 
 ```bash
 export DASHBOARD_URL=https://goliat.waves-ugent.be
