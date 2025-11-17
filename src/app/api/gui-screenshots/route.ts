@@ -212,7 +212,9 @@ export async function POST(request: NextRequest) {
 
     // Extract all file fields from formData (excluding machineId)
     const fileFields: Array<{ name: string; file: File }> = []
-    for (const [key, value] of formData.entries()) {
+    // Use Array.from() to iterate over FormData entries (compatible with TypeScript compilation)
+    const entries = Array.from(formData.entries())
+    for (const [key, value] of entries) {
       if (key !== 'machineId' && value instanceof File) {
         // Convert tab name back from field name (replace underscores with spaces)
         const tabName = key.replace(/_/g, ' ')
