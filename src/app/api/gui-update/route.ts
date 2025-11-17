@@ -187,6 +187,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Handle simulation_details
+    if (messageType === 'simulation_details') {
+      if (message.simulation_count !== undefined) {
+        updateData.simulationCount = message.simulation_count
+      }
+      if (message.total_simulations !== undefined) {
+        updateData.totalSimulations = message.total_simulations
+      }
+      if (message.current_case !== undefined) {
+        updateData.currentCase = message.current_case
+      }
+    }
+
     // Handle log_batch messages (batched logs for efficiency)
     if (messageType === 'log_batch' && message.logs && Array.isArray(message.logs)) {
       const logMessages = Array.isArray(guiState.logMessages) ? [...guiState.logMessages] : []

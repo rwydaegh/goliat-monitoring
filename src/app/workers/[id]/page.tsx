@@ -384,6 +384,30 @@ export default function WorkerDetail() {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Progress</h2>
           
+          {/* Simulation Info */}
+          {(guiState.simulationCount !== null || guiState.currentCase) && (
+            <div className="mb-6 pb-6 border-b border-gray-200">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {guiState.simulationCount !== null && guiState.totalSimulations !== null && (
+                  <div>
+                    <div className="text-sm font-medium text-gray-700 mb-1">Simulation</div>
+                    <div className="text-lg font-semibold text-gray-900">
+                      {guiState.simulationCount} / {guiState.totalSimulations}
+                    </div>
+                  </div>
+                )}
+                {guiState.currentCase && (
+                  <div>
+                    <div className="text-sm font-medium text-gray-700 mb-1">Current Case</div>
+                    <div className="text-lg font-semibold text-gray-900 truncate" title={guiState.currentCase}>
+                      {guiState.currentCase}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           {/* Overall Progress */}
           <div className="mb-6">
             <div className="flex justify-between mb-2">
