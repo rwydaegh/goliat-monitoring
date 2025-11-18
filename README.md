@@ -200,4 +200,20 @@ See `TEST_API.md` for API testing instructions and examples.
 
 ## License
 
-MIT
+**PROPRIETARY - All Rights Reserved**
+
+This software is proprietary and confidential. Unauthorized copying, modification, 
+distribution, or use of this software, via any medium, is strictly prohibited and may 
+be subject to civil and criminal penalties.
+
+**You may NOT:**
+- Copy, reproduce, or duplicate this software
+- Modify, adapt, or create derivative works
+- Distribute, sublicense, rent, lease, or transfer this software
+- Use this software for any commercial purpose without express written permission
+- Fork, clone, or create derivative repositories
+
+Viewing this code on GitHub does not grant any license rights. For licensing 
+inquiries, please contact the copyright holder.
+
+See [LICENSE](LICENSE) for full terms and conditions.
