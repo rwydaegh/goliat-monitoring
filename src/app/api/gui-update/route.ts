@@ -320,7 +320,9 @@ export async function POST(request: NextRequest) {
           if (superStudy) {
             const completedCount = superStudy.assignments.filter(a => a.status === 'COMPLETED').length
             const totalAssignments = superStudy.totalAssignments
-            const masterProgress = totalAssignments > 0 ? (completedCount / totalAssignments) * 100 : 0
+            // Calculate progress based on sum of all assignment progress values
+            const totalProgress = superStudy.assignments.reduce((sum, a) => sum + a.progress, 0)
+            const masterProgress = totalAssignments > 0 ? (totalProgress / totalAssignments) : 0
 
             await prisma.superStudy.update({
               where: { id: superStudy.id },
@@ -377,7 +379,9 @@ export async function POST(request: NextRequest) {
         if (superStudy) {
           const completedCount = superStudy.assignments.filter(a => a.status === 'COMPLETED').length
           const totalAssignments = superStudy.totalAssignments
-          const masterProgress = totalAssignments > 0 ? (completedCount / totalAssignments) * 100 : 0
+          // Calculate progress based on sum of all assignment progress values
+          const totalProgress = superStudy.assignments.reduce((sum, a) => sum + a.progress, 0)
+          const masterProgress = totalAssignments > 0 ? (totalProgress / totalAssignments) : 0
 
           await prisma.superStudy.update({
             where: { id: superStudy.id },

@@ -214,7 +214,9 @@ export async function DELETE(
         // Recalculate based on current assignment states (after updates)
         const completedCount = superStudy.assignments.filter(a => a.status === 'COMPLETED').length
         const totalAssignments = superStudy.totalAssignments
-        const masterProgress = totalAssignments > 0 ? (completedCount / totalAssignments) * 100 : 0
+        // Calculate progress based on sum of all assignment progress values
+        const totalProgress = superStudy.assignments.reduce((sum, a) => sum + a.progress, 0)
+        const masterProgress = totalAssignments > 0 ? (totalProgress / totalAssignments) : 0
 
         // Determine status based on assignments
         let status = superStudy.status
