@@ -203,6 +203,11 @@ export async function POST(request: NextRequest) {
 
     // Handle log_batch messages (batched logs for efficiency)
     if (messageType === 'log_batch' && message.logs && Array.isArray(message.logs)) {
+      const batchSequence = message.sequence !== undefined ? message.sequence : -1
+      const batchSize = message.logs.length
+      const msgPreviews = message.logs.slice(0, 3).map((m: any) => (m.message || '').substring(0, 30))
+      console.log(`[DEBUG] Received log_batch seq=${batchSequence} with ${batchSize} messages:`, msgPreviews)
+      
       // Use transaction to prevent race conditions when multiple batches arrive concurrently
       await prisma.$transaction(async (tx) => {
         // Re-read GUI state within transaction to get latest data
@@ -212,10 +217,12 @@ export async function POST(request: NextRequest) {
         
         if (!currentGuiState) {
           // Should not happen, but handle gracefully
+          console.log(`[DEBUG] No GUI state found for worker ${worker.id}`)
           return
         }
         
         const logMessages = Array.isArray(currentGuiState.logMessages) ? [...currentGuiState.logMessages] : []
+        const beforeCount = logMessages.length
         
         // Track warnings and errors from existing logs
         let warningCount = 0
@@ -227,7 +234,6 @@ export async function POST(request: NextRequest) {
         })
         
         // Process each log in the batch
-        const batchSequence = message.sequence !== undefined ? message.sequence : -1
         const newLogs: Array<{message: string, logType: string, timestamp: string, sequence?: number}> = []
         
         for (const logMsg of message.logs) {
@@ -277,6 +283,9 @@ export async function POST(request: NextRequest) {
           if (b.sequence !== undefined) return 1
           return 0
         })
+        
+        const afterCount = logMessages.length
+        console.log(`[DEBUG] Batch seq=${batchSequence}: ${beforeCount} -> ${afterCount} logs (added ${newLogs.length})`)
         
         // Update GUI state within transaction
         await tx.guiState.update({
