@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
@@ -281,7 +282,7 @@ export async function POST(request: NextRequest) {
         await tx.guiState.update({
           where: { workerId: worker.id },
           data: {
-            logMessages: logMessages,
+            logMessages: logMessages as Prisma.InputJsonValue, // Cast to InputJsonValue for Prisma update
             warningCount: warningCount,
             errorCount: errorCount,
             updatedAt: new Date()

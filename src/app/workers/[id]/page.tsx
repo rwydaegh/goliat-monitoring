@@ -29,13 +29,35 @@ function GuiScreenshots({ workerId }: { workerId: string }) {
         newTimestamps[tabName] = now
       })
       setImageTimestamps(newTimestamps)
+      // Clear errors when timestamp updates to retry loading
+      setImageErrors(new Set())
     }, 1000)
 
     return () => clearInterval(interval)
   }, [])
 
+  // Clear error state when switching tabs to allow retry
+  const handleTabChange = (tabName: string) => {
+    setActiveTab(tabName)
+    // Clear error for the newly active tab to allow retry
+    setImageErrors(prev => {
+      const newSet = new Set(prev)
+      newSet.delete(tabName)
+      return newSet
+    })
+  }
+
   const handleImageError = (tabName: string) => {
     setImageErrors(prev => new Set(prev).add(tabName))
+  }
+
+  const handleImageLoad = (tabName: string) => {
+    // Clear error state when image successfully loads
+    setImageErrors(prev => {
+      const newSet = new Set(prev)
+      newSet.delete(tabName)
+      return newSet
+    })
   }
 
   const getImageUrl = (tabName: string) => {
@@ -52,7 +74,7 @@ function GuiScreenshots({ workerId }: { workerId: string }) {
           {tabNames.map((tabName) => (
             <button
               key={tabName}
-              onClick={() => setActiveTab(tabName)}
+              onClick={() => handleTabChange(tabName)}
               className={`
                 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
                 ${
@@ -88,6 +110,7 @@ function GuiScreenshots({ workerId }: { workerId: string }) {
                   src={getImageUrl(tabName)}
                   alt={`${tabName} Screenshot`}
                   onError={() => handleImageError(tabName)}
+                  onLoad={() => handleImageLoad(tabName)}
                   className="w-full h-auto"
                   style={{ maxHeight: '600px', objectFit: 'contain' }}
                 />
