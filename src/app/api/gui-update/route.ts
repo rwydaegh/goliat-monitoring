@@ -210,15 +210,25 @@ export async function POST(request: NextRequest) {
       
       // Use transaction to prevent race conditions when multiple batches arrive concurrently
       await prisma.$transaction(async (tx) => {
-        // Re-read GUI state within transaction to get latest data
-        const currentGuiState = await tx.guiState.findUnique({
+        // Re-read GUI state within transaction to get latest data, or create if it doesn't exist
+        let currentGuiState = await tx.guiState.findUnique({
           where: { workerId: worker.id }
         })
         
         if (!currentGuiState) {
-          // Should not happen, but handle gracefully
-          console.log(`[DEBUG] No GUI state found for worker ${worker.id}`)
-          return
+          // Create GUI state if it doesn't exist (can happen in race conditions)
+          console.log(`[DEBUG] Creating GUI state for worker ${worker.id} within transaction`)
+          currentGuiState = await tx.guiState.create({
+            data: {
+              workerId: worker.id,
+              stage: '',
+              progress: 0,
+              logMessages: [],
+              status: workerStatus,
+              warningCount: 0,
+              errorCount: 0
+            }
+          })
         }
         
         const logMessages = Array.isArray(currentGuiState.logMessages) ? [...currentGuiState.logMessages] : []
