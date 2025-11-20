@@ -5,10 +5,11 @@ import { useParams, useRouter } from 'next/navigation'
 import { Computer, Activity, Clock, ArrowLeft, Trash2 } from 'lucide-react'
 
 // GUI Screenshots Component
-function GuiScreenshots({ workerId }: { workerId: string }) {
+function GuiScreenshots({ workerId, workerStatus }: { workerId: string; workerStatus: string }) {
   const [activeTab, setActiveTab] = useState('System Utilization')
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
   const [imageTimestamps, setImageTimestamps] = useState<Record<string, number>>({})
+  const [lastSuccessfulImageUrls, setLastSuccessfulImageUrls] = useState<Record<string, string>>({})
 
   // Exclude 'Progress' tab - its data is already displayed via other widgets
   const tabNames = [
@@ -19,8 +20,16 @@ function GuiScreenshots({ workerId }: { workerId: string }) {
     'System Utilization'
   ]
 
-  // Auto-refresh images every 1 second
+  // Check if worker is inactive (idle or stale)
+  const isWorkerInactive = workerStatus?.toUpperCase() === 'IDLE' || workerStatus?.toUpperCase() === 'STALE'
+
+  // Auto-refresh images every 1 second, but only if worker is active
   useEffect(() => {
+    // Don't auto-refresh if worker is inactive
+    if (isWorkerInactive) {
+      return
+    }
+
     const interval = setInterval(() => {
       // Update timestamp to bust browser cache
       const now = Date.now()
@@ -29,12 +38,12 @@ function GuiScreenshots({ workerId }: { workerId: string }) {
         newTimestamps[tabName] = now
       })
       setImageTimestamps(newTimestamps)
-      // Clear errors when timestamp updates to retry loading
+      // Clear errors when timestamp updates to retry loading (only for active workers)
       setImageErrors(new Set())
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [isWorkerInactive])
 
   // Clear error state when switching tabs to allow retry
   const handleTabChange = (tabName: string) => {
@@ -48,6 +57,17 @@ function GuiScreenshots({ workerId }: { workerId: string }) {
   }
 
   const handleImageError = (tabName: string) => {
+    // If we have a last successful image URL, don't set error - use that instead
+    if (lastSuccessfulImageUrls[tabName]) {
+      // Clear error and use the last successful image
+      setImageErrors(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(tabName)
+        return newSet
+      })
+      return
+    }
+    // Only set error if we don't have a fallback image
     setImageErrors(prev => new Set(prev).add(tabName))
   }
 
@@ -58,12 +78,27 @@ function GuiScreenshots({ workerId }: { workerId: string }) {
       newSet.delete(tabName)
       return newSet
     })
+    // Store the successfully loaded image URL
+    const currentUrl = getImageUrl(tabName)
+    setLastSuccessfulImageUrls(prev => ({
+      ...prev,
+      [tabName]: currentUrl
+    }))
   }
 
   const getImageUrl = (tabName: string) => {
     const timestamp = imageTimestamps[tabName] || Date.now()
     const sanitizedTabName = encodeURIComponent(tabName)
     return `/api/gui-screenshots/${workerId}/${sanitizedTabName}?t=${timestamp}`
+  }
+
+  const getDisplayImageUrl = (tabName: string) => {
+    // If worker is inactive and we have a last successful image, use that
+    // Also use it if we have an error but have a fallback (prevents blinking)
+    if (lastSuccessfulImageUrls[tabName] && (isWorkerInactive || imageErrors.has(tabName))) {
+      return lastSuccessfulImageUrls[tabName]
+    }
+    return getImageUrl(tabName)
   }
 
   return (
@@ -97,7 +132,7 @@ function GuiScreenshots({ workerId }: { workerId: string }) {
             key={tabName}
             className={activeTab === tabName ? 'block' : 'hidden'}
           >
-            {imageErrors.has(tabName) ? (
+            {imageErrors.has(tabName) && !lastSuccessfulImageUrls[tabName] ? (
               <div className="flex items-center justify-center h-64 bg-gray-100 rounded border-2 border-dashed border-gray-300">
                 <div className="text-center">
                   <p className="text-gray-500 text-sm">No screenshot available</p>
@@ -107,7 +142,7 @@ function GuiScreenshots({ workerId }: { workerId: string }) {
             ) : (
               <div className="relative w-full bg-gray-100 rounded border border-gray-200 overflow-hidden">
                 <img
-                  src={getImageUrl(tabName)}
+                  src={getDisplayImageUrl(tabName)}
                   alt={`${tabName} Screenshot`}
                   onError={() => handleImageError(tabName)}
                   onLoad={() => handleImageLoad(tabName)}
@@ -117,6 +152,11 @@ function GuiScreenshots({ workerId }: { workerId: string }) {
                 <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
                   {tabName}
                 </div>
+                {isWorkerInactive && lastSuccessfulImageUrls[tabName] && (
+                  <div className="absolute top-2 left-2 bg-yellow-500 bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                    Last available
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -573,7 +613,7 @@ export default function WorkerDetail() {
       {/* GUI Screenshots Section */}
       <div className="bg-white shadow rounded-lg p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">GUI Screenshots</h2>
-        <GuiScreenshots workerId={worker.id} />
+        <GuiScreenshots workerId={worker.id} workerStatus={worker.status} />
       </div>
 
       {/* Worker Info */}

@@ -264,23 +264,32 @@ export async function POST(request: NextRequest) {
           if (logType === 'error' || logType === 'fatal') errorCount++
         }
         
-        // Prevent duplicates: check if messages already exist (same message + timestamp within 1 second)
+        // Prevent duplicates: check if messages already exist (same message + timestamp + sequence)
+        // Use sequence number to distinguish between retries vs. actual duplicates
         const existingMessageKeys = new Set<string>()
         logMessages.forEach((log: any) => {
-          const key = `${log.message}|${log.timestamp}`
+          // Include sequence in key to allow same message with different sequence (different batches)
+          const seq = log.sequence !== undefined ? log.sequence : 'none'
+          const key = `${log.message}|${log.timestamp}|${seq}`
           existingMessageKeys.add(key)
         })
         
         // Filter out duplicates from new logs before adding
         const uniqueNewLogs = newLogs.filter((log: any) => {
-          const key = `${log.message}|${log.timestamp}`
+          const seq = log.sequence !== undefined ? log.sequence : 'none'
+          const key = `${log.message}|${log.timestamp}|${seq}`
           if (existingMessageKeys.has(key)) {
-            console.log(`[DEBUG] Skipping duplicate message: ${log.message.substring(0, 50)}`)
+            console.log(`[DEBUG] Skipping duplicate message (seq=${seq}): ${log.message.substring(0, 50)}`)
             return false
           }
           existingMessageKeys.add(key)
           return true
         })
+        
+        // Log if any messages were filtered
+        if (uniqueNewLogs.length < newLogs.length) {
+          console.log(`[DEBUG] Batch seq=${batchSequence}: Filtered ${newLogs.length - uniqueNewLogs.length} duplicates, keeping ${uniqueNewLogs.length} unique messages`)
+        }
         
         // Add new logs to existing logs
         logMessages.push(...uniqueNewLogs)
@@ -311,7 +320,14 @@ export async function POST(request: NextRequest) {
         
         const afterCount = logMessages.length
         const actuallyAdded = afterCount - beforeCount
-        console.log(`[DEBUG] Batch seq=${batchSequence}: ${beforeCount} -> ${afterCount} logs (added ${actuallyAdded}, filtered ${newLogs.length - uniqueNewLogs.length} duplicates)`)
+        const filteredCount = newLogs.length - uniqueNewLogs.length
+        console.log(`[DEBUG] Batch seq=${batchSequence}: ${beforeCount} -> ${afterCount} logs (added ${actuallyAdded} unique, filtered ${filteredCount} duplicates)`)
+        
+        // Log message previews for debugging
+        if (uniqueNewLogs.length > 0) {
+          const previews = uniqueNewLogs.slice(0, 3).map((log: any) => log.message.substring(0, 40))
+          console.log(`[DEBUG] Batch seq=${batchSequence} messages:`, previews)
+        }
         
         // Update GUI state within transaction
         await tx.guiState.update({
