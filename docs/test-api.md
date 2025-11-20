@@ -5,7 +5,7 @@ Quick reference for testing dashboard API endpoints.
 ## Test script 
 
 ```bash
-export DASHBOARD_URL=https://goliat.waves-ugent.be
+export DASHBOARD_URL=https://monitor.goliat.waves-ugent.be
 bash test-api.sh
 ```
 
@@ -13,15 +13,15 @@ bash test-api.sh
 
 ```bash
 # Get all workers
-curl https://goliat.waves-ugent.be/api/workers
+curl https://monitor.goliat.waves-ugent.be/api/workers
 
 # Send heartbeat
-curl -X POST https://goliat.waves-ugent.be/api/heartbeat \
+curl -X POST https://monitor.goliat.waves-ugent.be/api/heartbeat \
   -H "Content-Type: application/json" \
   -d '{"machineId": "YOUR_IP_ADDRESS"}'
 
 # Send GUI update
-curl -X POST https://goliat.waves-ugent.be/api/gui-update \
+curl -X POST https://monitor.goliat.waves-ugent.be/api/gui-update \
   -H "Content-Type: application/json" \
   -d '{
     "machineId": "YOUR_IP_ADDRESS",

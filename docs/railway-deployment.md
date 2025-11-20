@@ -108,7 +108,7 @@ Sufficient for development and small-scale deployments.
 
 ## Next steps
 
-1. Configure workers: Set `GOLIAT_MONITORING_URL` environment variable on worker machines (optional, defaults to `https://goliat.waves-ugent.be`)
+1. Configure workers: Set `GOLIAT_MONITORING_URL` environment variable on worker machines (optional, defaults to `https://monitor.goliat.waves-ugent.be`)
 2. Test monitoring: Run a GOLIAT study and verify worker appears on dashboard
 3. Create super study: Test distributed execution workflow
 4. Monitor results: Verify result file uploads and downloads work

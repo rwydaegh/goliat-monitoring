@@ -202,48 +202,97 @@ export async function POST(request: NextRequest) {
 
     // Handle log_batch messages (batched logs for efficiency)
     if (messageType === 'log_batch' && message.logs && Array.isArray(message.logs)) {
-      const logMessages = Array.isArray(guiState.logMessages) ? [...guiState.logMessages] : []
-      
-      // Track warnings and errors from existing logs
-      let warningCount = 0
-      let errorCount = 0
-      logMessages.forEach((log: any) => {
-        const lt = log.logType || 'default'
-        if (lt === 'warning' || lt === 'highlight') warningCount++
-        if (lt === 'error' || lt === 'fatal') errorCount++
-      })
-      
-      // Process each log in the batch (they're already in chronological order)
-      for (const logMsg of message.logs) {
-        const logType = logMsg.log_type || 'default'
-        
-        // Convert UNIX timestamp (seconds) to ISO string if needed
-        let logTimestamp: string
-        const logTs = logMsg.timestamp || timestamp
-        if (typeof logTs === 'number') {
-          // Python sends time.time() which is seconds since epoch
-          logTimestamp = new Date(logTs * 1000).toISOString()
-        } else if (logTs) {
-          logTimestamp = logTs
-        } else {
-          logTimestamp = new Date().toISOString()
-        }
-        
-        logMessages.push({
-          message: logMsg.message,
-          logType: logType,
-          timestamp: logTimestamp
+      // Use transaction to prevent race conditions when multiple batches arrive concurrently
+      await prisma.$transaction(async (tx) => {
+        // Re-read GUI state within transaction to get latest data
+        const currentGuiState = await tx.guiState.findUnique({
+          where: { workerId: worker.id }
         })
         
-        // Update counts
-        if (logType === 'warning' || logType === 'highlight') warningCount++
-        if (logType === 'error' || logType === 'fatal') errorCount++
-      }
-      
-      // Store all log messages (no limit)
-      updateData.logMessages = logMessages
-      updateData.warningCount = warningCount
-      updateData.errorCount = errorCount
+        if (!currentGuiState) {
+          // Should not happen, but handle gracefully
+          return
+        }
+        
+        const logMessages = Array.isArray(currentGuiState.logMessages) ? [...currentGuiState.logMessages] : []
+        
+        // Track warnings and errors from existing logs
+        let warningCount = 0
+        let errorCount = 0
+        logMessages.forEach((log: any) => {
+          const lt = log.logType || 'default'
+          if (lt === 'warning' || lt === 'highlight') warningCount++
+          if (lt === 'error' || lt === 'fatal') errorCount++
+        })
+        
+        // Process each log in the batch
+        const batchSequence = message.sequence !== undefined ? message.sequence : -1
+        const newLogs: Array<{message: string, logType: string, timestamp: string, sequence?: number}> = []
+        
+        for (const logMsg of message.logs) {
+          const logType = logMsg.log_type || 'default'
+          
+          // Convert UNIX timestamp (seconds) to ISO string if needed
+          let logTimestamp: string
+          const logTs = logMsg.timestamp || timestamp
+          if (typeof logTs === 'number') {
+            // Python sends time.time() which is seconds since epoch
+            logTimestamp = new Date(logTs * 1000).toISOString()
+          } else if (logTs) {
+            logTimestamp = logTs
+          } else {
+            logTimestamp = new Date().toISOString()
+          }
+          
+          newLogs.push({
+            message: logMsg.message,
+            logType: logType,
+            timestamp: logTimestamp,
+            sequence: batchSequence >= 0 ? batchSequence : undefined
+          })
+          
+          // Update counts
+          if (logType === 'warning' || logType === 'highlight') warningCount++
+          if (logType === 'error' || logType === 'fatal') errorCount++
+        }
+        
+        // Add new logs to existing logs
+        logMessages.push(...newLogs)
+        
+        // Sort logs by timestamp (and sequence if available) to handle out-of-order batches
+        logMessages.sort((a: any, b: any) => {
+          // First compare by timestamp
+          const timeA = new Date(a.timestamp).getTime()
+          const timeB = new Date(b.timestamp).getTime()
+          if (timeA !== timeB) {
+            return timeA - timeB
+          }
+          // If timestamps are equal, use sequence number if available
+          if (a.sequence !== undefined && b.sequence !== undefined) {
+            return a.sequence - b.sequence
+          }
+          // If only one has sequence, prefer the one with sequence (shouldn't happen)
+          if (a.sequence !== undefined) return -1
+          if (b.sequence !== undefined) return 1
+          return 0
+        })
+        
+        // Update GUI state within transaction
+        await tx.guiState.update({
+          where: { workerId: worker.id },
+          data: {
+            logMessages: logMessages,
+            warningCount: warningCount,
+            errorCount: errorCount,
+            updatedAt: new Date()
+          }
+        })
+        
+        // Also update updateData for later use
+        updateData.logMessages = logMessages
+        updateData.warningCount = warningCount
+        updateData.errorCount = errorCount
+      })
     }
     
     // Handle status/log messages (single log for backwards compatibility)

@@ -7,7 +7,7 @@ Environment variables for configuring the monitoring dashboard and worker connec
 Workers connect to the monitoring dashboard automatically. The default URL is:
 
 ```
-https://goliat.waves-ugent.be
+https://monitor.goliat.waves-ugent.be
 ```
 
 ### Custom dashboard URL

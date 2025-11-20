@@ -2,7 +2,7 @@
 
 Web-based monitoring dashboard for orchestrating and monitoring GOLIAT simulation studies across multiple worker machines. Provides centralized visibility into distributed execution, progress tracking, and result management.
 
-**Live dashboard:** [https://goliat.waves-ugent.be](https://goliat.waves-ugent.be)
+**Live dashboard:** [https://monitor.goliat.waves-ugent.be](https://monitor.goliat.waves-ugent.be)
 
 ## Overview
 
@@ -126,7 +126,7 @@ Database migrations run automatically when the application starts.
 
 ### Dashboard URL
 
-The GOLIAT client connects to the monitoring dashboard automatically. The default URL is `https://goliat.waves-ugent.be`. To use a different URL, set the `GOLIAT_MONITORING_URL` environment variable.
+The GOLIAT client connects to the monitoring dashboard automatically. The default URL is `https://monitor.goliat.waves-ugent.be`. To use a different URL, set the `GOLIAT_MONITORING_URL` environment variable.
 
 ### Worker identification
 

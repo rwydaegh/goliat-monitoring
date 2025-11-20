@@ -12,11 +12,11 @@ If your worker doesn't appear on the dashboard, check these:
 
 3. Check logs: After starting GOLIAT, look for:
    ```
-   Web GUI bridge enabled: https://goliat.waves-ugent.be, machine_id=YOUR_IP
+   Web GUI bridge enabled: https://monitor.goliat.waves-ugent.be, machine_id=YOUR_IP
    ```
    If you see this, the bridge is working.
 
-4. Dashboard: Go to [https://goliat.waves-ugent.be](https://goliat.waves-ugent.be) and refresh. Worker should appear within 5-10 seconds.
+4. Dashboard: Go to [https://monitor.goliat.waves-ugent.be](https://monitor.goliat.waves-ugent.be) and refresh. Worker should appear within 5-10 seconds.
 
 ## Common issues
 
