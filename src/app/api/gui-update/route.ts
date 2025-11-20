@@ -212,7 +212,8 @@ export async function POST(request: NextRequest) {
       console.log(`[DEBUG] Received log_batch seq=${batchSequence} with ${batchSize} messages:`, msgPreviews)
       
       // Use transaction to prevent race conditions when multiple batches arrive concurrently
-      await prisma.$transaction(async (tx) => {
+      try {
+        await prisma.$transaction(async (tx) => {
         // Re-read GUI state within transaction to get latest data, or create if it doesn't exist
         let currentGuiState = await tx.guiState.findUnique({
           where: { workerId: worker.id }
@@ -368,7 +369,13 @@ export async function POST(request: NextRequest) {
         updateData.logMessages = logMessages
         updateData.warningCount = warningCount
         updateData.errorCount = errorCount
-      })
+        })
+        console.log(`[DEBUG] Batch seq=${batchSequence}: Transaction completed successfully`)
+      } catch (txError) {
+        console.error(`[DEBUG] Batch seq=${batchSequence}: Transaction failed:`, txError)
+        // Re-throw to be caught by outer error handler
+        throw txError
+      }
     }
     
     // Handle status/log messages (single log for backwards compatibility)
