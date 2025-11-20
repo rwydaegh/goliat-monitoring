@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
         })
         
         // Process each log in the batch
-        const newLogs: Array<{message: string, logType: string, timestamp: string, sequence?: number}> = []
+        const newLogs: Array<{message: string, logType: string, timestamp: string, sequence?: number, batchIndex?: number}> = []
         
         for (const logMsg of message.logs) {
           const logType = logMsg.log_type || 'default'
@@ -255,7 +255,8 @@ export async function POST(request: NextRequest) {
             message: logMsg.message,
             logType: logType,
             timestamp: logTimestamp,
-            sequence: batchSequence >= 0 ? batchSequence : undefined
+            sequence: batchSequence >= 0 ? batchSequence : undefined,
+            batchIndex: logMsg.batch_index !== undefined ? logMsg.batch_index : undefined  // Preserve order within batch
           })
           
           // Update counts
@@ -263,10 +264,28 @@ export async function POST(request: NextRequest) {
           if (logType === 'error' || logType === 'fatal') errorCount++
         }
         
-        // Add new logs to existing logs
-        logMessages.push(...newLogs)
+        // Prevent duplicates: check if messages already exist (same message + timestamp within 1 second)
+        const existingMessageKeys = new Set<string>()
+        logMessages.forEach((log: any) => {
+          const key = `${log.message}|${log.timestamp}`
+          existingMessageKeys.add(key)
+        })
         
-        // Sort logs by timestamp (and sequence if available) to handle out-of-order batches
+        // Filter out duplicates from new logs before adding
+        const uniqueNewLogs = newLogs.filter((log: any) => {
+          const key = `${log.message}|${log.timestamp}`
+          if (existingMessageKeys.has(key)) {
+            console.log(`[DEBUG] Skipping duplicate message: ${log.message.substring(0, 50)}`)
+            return false
+          }
+          existingMessageKeys.add(key)
+          return true
+        })
+        
+        // Add new logs to existing logs
+        logMessages.push(...uniqueNewLogs)
+        
+        // Sort logs by timestamp, then sequence, then batchIndex to handle out-of-order batches
         logMessages.sort((a: any, b: any) => {
           // First compare by timestamp
           const timeA = new Date(a.timestamp).getTime()
@@ -274,9 +293,15 @@ export async function POST(request: NextRequest) {
           if (timeA !== timeB) {
             return timeA - timeB
           }
-          // If timestamps are equal, use sequence number if available
+          // If timestamps are equal, use sequence number if available (for ordering batches)
           if (a.sequence !== undefined && b.sequence !== undefined) {
-            return a.sequence - b.sequence
+            if (a.sequence !== b.sequence) {
+              return a.sequence - b.sequence
+            }
+            // If same sequence (same batch), use batchIndex to preserve order within batch
+            if (a.batchIndex !== undefined && b.batchIndex !== undefined) {
+              return a.batchIndex - b.batchIndex
+            }
           }
           // If only one has sequence, prefer the one with sequence (shouldn't happen)
           if (a.sequence !== undefined) return -1
@@ -285,7 +310,8 @@ export async function POST(request: NextRequest) {
         })
         
         const afterCount = logMessages.length
-        console.log(`[DEBUG] Batch seq=${batchSequence}: ${beforeCount} -> ${afterCount} logs (added ${newLogs.length})`)
+        const actuallyAdded = afterCount - beforeCount
+        console.log(`[DEBUG] Batch seq=${batchSequence}: ${beforeCount} -> ${afterCount} logs (added ${actuallyAdded}, filtered ${newLogs.length - uniqueNewLogs.length} duplicates)`)
         
         // Update GUI state within transaction
         await tx.guiState.update({
