@@ -277,22 +277,25 @@ export async function POST(request: NextRequest) {
           if (logType === 'error' || logType === 'fatal') errorCount++
         }
         
-        // Prevent duplicates: check if messages already exist (same message + timestamp + sequence)
-        // Use sequence number to distinguish between retries vs. actual duplicates
+        // Prevent duplicates: check if messages already exist (same message + timestamp + sequence + batchIndex)
+        // Use sequence + batchIndex to distinguish between retries vs. actual duplicates
+        // This allows same message text with different timestamps/sequences to coexist
         const existingMessageKeys = new Set<string>()
         logMessages.forEach((log: any) => {
-          // Include sequence in key to allow same message with different sequence (different batches)
+          // Include sequence and batchIndex in key to uniquely identify messages
           const seq = log.sequence !== undefined ? log.sequence : 'none'
-          const key = `${log.message}|${log.timestamp}|${seq}`
+          const batchIdx = log.batchIndex !== undefined ? log.batchIndex : 'none'
+          const key = `${log.message}|${log.timestamp}|${seq}|${batchIdx}`
           existingMessageKeys.add(key)
         })
         
         // Filter out duplicates from new logs before adding
         const uniqueNewLogs = newLogs.filter((log: any) => {
           const seq = log.sequence !== undefined ? log.sequence : 'none'
-          const key = `${log.message}|${log.timestamp}|${seq}`
+          const batchIdx = log.batchIndex !== undefined ? log.batchIndex : 'none'
+          const key = `${log.message}|${log.timestamp}|${seq}|${batchIdx}`
           if (existingMessageKeys.has(key)) {
-            console.log(`[DEBUG] Skipping duplicate message (seq=${seq}): ${log.message.substring(0, 50)}`)
+            console.log(`[DEBUG] Skipping duplicate message (seq=${seq}, batchIdx=${batchIdx}): ${log.message.substring(0, 50)}`)
             return false
           }
           existingMessageKeys.add(key)
@@ -302,6 +305,14 @@ export async function POST(request: NextRequest) {
         // Log if any messages were filtered
         if (uniqueNewLogs.length < newLogs.length) {
           console.log(`[DEBUG] Batch seq=${batchSequence}: Filtered ${newLogs.length - uniqueNewLogs.length} duplicates, keeping ${uniqueNewLogs.length} unique messages`)
+          // Log which messages were filtered for debugging
+          newLogs.forEach((log: any, idx: number) => {
+            if (!uniqueNewLogs.includes(log)) {
+              const seq = log.sequence !== undefined ? log.sequence : 'none'
+              const batchIdx = log.batchIndex !== undefined ? log.batchIndex : 'none'
+              console.log(`[DEBUG] Filtered message ${idx}: "${log.message.substring(0, 50)}" (seq=${seq}, batchIdx=${batchIdx}, ts=${log.timestamp})`)
+            }
+          })
         }
         
         // Add new logs to existing logs
