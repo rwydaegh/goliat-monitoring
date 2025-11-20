@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
+// Increase timeout for long-running transactions
+export const maxDuration = 30 // 30 seconds (Railway/Vercel default is 10s)
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
