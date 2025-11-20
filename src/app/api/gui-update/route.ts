@@ -282,7 +282,7 @@ export async function POST(request: NextRequest) {
         await tx.guiState.update({
           where: { workerId: worker.id },
           data: {
-            logMessages: logMessages as Prisma.InputJsonValue, // Cast to InputJsonValue for Prisma update
+            logMessages: logMessages as any, // Cast to any to satisfy Prisma Json[] type requirement
             warningCount: warningCount,
             errorCount: errorCount,
             updatedAt: new Date()
