@@ -158,9 +158,19 @@ export async function POST(request: NextRequest) {
     })
 
     // Update GUI state based on message type
+    // IMPORTANT: Always merge with existing guiState to preserve fields not being updated
+    // This prevents progress bars from resetting when only one field is updated
     const updateData: any = {
       updatedAt: new Date(),
-      status: workerStatus
+      status: workerStatus,
+      // Preserve existing values by default
+      progress: guiState.progress ?? 0,
+      stage: guiState.stage ?? '',
+      stageProgress: guiState.stageProgress ?? undefined,
+      eta: guiState.eta ?? null,
+      simulationCount: guiState.simulationCount ?? null,
+      totalSimulations: guiState.totalSimulations ?? null,
+      currentCase: guiState.currentCase ?? null
     }
 
     // Handle overall_progress
