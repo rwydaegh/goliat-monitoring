@@ -454,16 +454,18 @@ export async function POST(request: NextRequest) {
     })
     
     // Broadcast progress updates to SSE clients (non-blocking)
-    if (messageType === 'overall_progress' || messageType === 'stage_progress' || messageType === 'profiler_update') {
+    // Merge updateData with existing guiState to preserve values not being updated
+    if (messageType === 'overall_progress' || messageType === 'stage_progress' || messageType === 'profiler_update' || messageType === 'simulation_details') {
       try {
+        // Merge updateData with existing guiState values (updateData only has changed fields)
         broadcastProgress(worker.id, {
-          progress: updateData.progress,
-          stage: updateData.stage,
-          stageProgress: updateData.stageProgress,
-          eta: updateData.eta,
-          simulationCount: updateData.simulationCount,
-          totalSimulations: updateData.totalSimulations,
-          currentCase: updateData.currentCase
+          progress: updateData.progress !== undefined ? updateData.progress : (guiState.progress ?? 0),
+          stage: updateData.stage !== undefined ? updateData.stage : (guiState.stage ?? ''),
+          stageProgress: updateData.stageProgress !== undefined ? updateData.stageProgress : (guiState.stageProgress ?? undefined),
+          eta: updateData.eta !== undefined ? updateData.eta : (guiState.eta ?? null),
+          simulationCount: updateData.simulationCount !== undefined ? updateData.simulationCount : (guiState.simulationCount ?? null),
+          totalSimulations: updateData.totalSimulations !== undefined ? updateData.totalSimulations : (guiState.totalSimulations ?? null),
+          currentCase: updateData.currentCase !== undefined ? updateData.currentCase : (guiState.currentCase ?? null)
         })
       } catch (error) {
         console.error(`[DEBUG] SSE progress broadcast failed:`, error)

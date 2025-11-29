@@ -315,15 +315,39 @@ export default function WorkerDetail() {
             }
             
             if (data.type === 'logs' && Array.isArray(data.logs)) {
-              // Append new logs to state
+              // Append new logs to state with deduplication
               setGuiState(prev => {
                 if (!prev) return prev
                 
                 const existingLogs = prev.logMessages || []
-                const newLogs = data.logs.map((log: any) => ({
-                  ...log,
-                  sequence: log.sequence !== undefined ? log.sequence : -1
-                }))
+                const existingKeys = new Set<string>()
+                
+                // Build set of existing log keys for deduplication
+                existingLogs.forEach((log: any) => {
+                  const seq = log.sequence !== undefined ? log.sequence : 'none'
+                  const key = `${log.message}|${log.timestamp}|${seq}`
+                  existingKeys.add(key)
+                })
+                
+                // Filter out duplicates from new logs
+                const newLogs = data.logs
+                  .map((log: any) => ({
+                    ...log,
+                    sequence: log.sequence !== undefined ? log.sequence : -1
+                  }))
+                  .filter((log: any) => {
+                    const seq = log.sequence !== undefined ? log.sequence : 'none'
+                    const key = `${log.message}|${log.timestamp}|${seq}`
+                    if (existingKeys.has(key)) {
+                      return false // Duplicate, skip
+                    }
+                    existingKeys.add(key) // Mark as seen
+                    return true
+                  })
+                
+                if (newLogs.length === 0) {
+                  return prev // No new logs to add
+                }
                 
                 // Merge and sort by sequence then timestamp
                 const merged = [...existingLogs, ...newLogs].sort((a: any, b: any) => {
