@@ -52,19 +52,19 @@ export function broadcastLogs(workerId: string, logs: any[]): void {
   // Broadcast to all connections for this worker
   const deadConnections: SSEController[] = []
   
-  for (const controller of workerConnections) {
+  workerConnections.forEach((controller) => {
     try {
       controller.enqueue(eventData)
     } catch (error) {
       // Connection closed, mark for cleanup
       deadConnections.push(controller)
     }
-  }
+  })
   
   // Clean up dead connections
-  for (const controller of deadConnections) {
+  deadConnections.forEach((controller) => {
     workerConnections.delete(controller)
-  }
+  })
   
   if (workerConnections.size === 0) {
     connections.delete(workerId)
@@ -90,17 +90,17 @@ export function broadcastProgress(workerId: string, progress: any): void {
   
   const deadConnections: SSEController[] = []
   
-  for (const controller of workerConnections) {
+  workerConnections.forEach((controller) => {
     try {
       controller.enqueue(eventData)
     } catch (error) {
       deadConnections.push(controller)
     }
-  }
+  })
   
-  for (const controller of deadConnections) {
+  deadConnections.forEach((controller) => {
     workerConnections.delete(controller)
-  }
+  })
   
   if (workerConnections.size === 0) {
     connections.delete(workerId)
@@ -119,9 +119,9 @@ export function getConnectionCount(workerId: string): number {
  */
 export function getTotalConnectionCount(): number {
   let total = 0
-  for (const workerConnections of connections.values()) {
+  connections.forEach((workerConnections) => {
     total += workerConnections.size
-  }
+  })
   return total
 }
 
