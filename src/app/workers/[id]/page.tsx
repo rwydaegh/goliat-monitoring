@@ -614,12 +614,12 @@ export default function WorkerDetail() {
           <div className="mb-6">
             <div className="flex justify-between mb-2">
               <span className="text-sm font-medium text-gray-700">Overall Progress</span>
-              <span className="text-sm text-gray-600">{guiState.progress.toFixed(1)}%</span>
+              <span className="text-sm text-gray-600">{(guiState.progress ?? 0).toFixed(1)}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-4">
               <div
                 className="bg-blue-600 h-4 rounded-full transition-all duration-300"
-                style={{ width: `${guiState.progress}%` }}
+                style={{ width: `${guiState.progress ?? 0}%` }}
               ></div>
             </div>
           </div>

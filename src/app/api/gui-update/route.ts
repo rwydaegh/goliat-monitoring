@@ -142,24 +142,20 @@ export async function POST(request: NextRequest) {
     // Handle different message types
     const messageType = message.type
 
-    // Get or create GUI state
-    let guiState = await prisma.guiState.findUnique({
-      where: { workerId: worker.id }
+    // Get or create GUI state (use upsert to handle race conditions)
+    let guiState = await prisma.guiState.upsert({
+      where: { workerId: worker.id },
+      update: {}, // Don't update anything if it exists
+      create: {
+        workerId: worker.id,
+        stage: '',
+        progress: 0,
+        logMessages: [],
+        status: 'IDLE',
+        warningCount: 0,
+        errorCount: 0
+      }
     })
-
-    if (!guiState) {
-      guiState = await prisma.guiState.create({
-        data: {
-          workerId: worker.id,
-          stage: '',
-          progress: 0,
-          logMessages: [],
-          status: 'IDLE',
-          warningCount: 0,
-          errorCount: 0
-        }
-      })
-    }
 
     // Update GUI state based on message type
     const updateData: any = {
@@ -216,24 +212,20 @@ export async function POST(request: NextRequest) {
       try {
         await prisma.$transaction(async (tx) => {
           // Re-read GUI state within transaction to get latest data, or create if it doesn't exist
-          let currentGuiState = await tx.guiState.findUnique({
-            where: { workerId: worker.id }
+          // Use upsert to handle race conditions (multiple batches arriving simultaneously)
+          let currentGuiState = await tx.guiState.upsert({
+            where: { workerId: worker.id },
+            update: {}, // Don't update anything if it exists, we'll update later
+            create: {
+              workerId: worker.id,
+              stage: '',
+              progress: 0,
+              logMessages: [],
+              status: workerStatus,
+              warningCount: 0,
+              errorCount: 0
+            }
           })
-          
-          if (!currentGuiState) {
-            // Create GUI state if it doesn't exist (can happen in race conditions)
-            currentGuiState = await tx.guiState.create({
-              data: {
-                workerId: worker.id,
-                stage: '',
-                progress: 0,
-                logMessages: [],
-                status: workerStatus,
-                warningCount: 0,
-                errorCount: 0
-              }
-            })
-          }
           
           const logMessages = Array.isArray(currentGuiState.logMessages) ? [...currentGuiState.logMessages] : []
           const beforeCount = logMessages.length
