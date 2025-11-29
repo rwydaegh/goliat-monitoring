@@ -337,23 +337,19 @@ export async function POST(request: NextRequest) {
           // Append new logs
           logMessages.push(...logsToAdd)
           
-          // Sort by sequence number if batches arrived out of order (parallel sending)
-          // Then by timestamp within same sequence
-          // Only sort if we have sequence numbers (parallel batches)
-          if (batchSequence >= 0) {
-            logMessages.sort((a: any, b: any) => {
-              // First by sequence (batch order)
-              const seqA = a.sequence !== undefined ? a.sequence : -1
-              const seqB = b.sequence !== undefined ? b.sequence : -1
-              if (seqA !== seqB) {
-                return seqA - seqB
-              }
-              // Then by timestamp within same sequence
-              const timeA = new Date(a.timestamp).getTime()
-              const timeB = new Date(b.timestamp).getTime()
+          // Sort by timestamp first (ensures different runs are ordered correctly),
+          // then by sequence as tiebreaker (for messages with same timestamp from parallel batches)
+          logMessages.sort((a: any, b: any) => {
+            const timeA = new Date(a.timestamp).getTime()
+            const timeB = new Date(b.timestamp).getTime()
+            if (timeA !== timeB) {
               return timeA - timeB
-            })
-          }
+            }
+            // Same timestamp: use sequence as tiebreaker (if available)
+            const seqA = a.sequence !== undefined ? a.sequence : -1
+            const seqB = b.sequence !== undefined ? b.sequence : -1
+            return seqA - seqB
+          })
           
           // Update GUI state within transaction
           await tx.guiState.update({

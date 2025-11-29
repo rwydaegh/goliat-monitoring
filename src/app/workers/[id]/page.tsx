@@ -254,25 +254,20 @@ export default function WorkerDetail() {
           // Check if any messages have sequence numbers (indicates parallel batches)
           const hasSequenceNumbers = data.guiState.logMessages.some((log: any) => log.sequence !== undefined)
           
-          if (hasSequenceNumbers) {
-            // Only sort if sequence numbers are present (parallel batches need sorting)
-            const sortedLogs = [...data.guiState.logMessages].sort((a: any, b: any) => {
-              // First by sequence (batch order)
-              const seqA = a.sequence !== undefined ? a.sequence : -1
-              const seqB = b.sequence !== undefined ? b.sequence : -1
-              if (seqA !== seqB) {
-                return seqA - seqB
-              }
-              // Then by timestamp within same sequence
-              const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0
-              const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0
+          // Always sort by timestamp first (ensures different runs are ordered correctly),
+          // then by sequence as tiebreaker (for messages with same timestamp from parallel batches)
+          const sortedLogs = [...data.guiState.logMessages].sort((a: any, b: any) => {
+            const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0
+            const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0
+            if (timeA !== timeB) {
               return timeA - timeB
-            })
-            setGuiState({ ...data.guiState, logMessages: sortedLogs })
-          } else {
-            // No sequence numbers = sequential batches, server already sorted correctly
-            setGuiState(data.guiState)
-          }
+            }
+            // Same timestamp: use sequence as tiebreaker (if available)
+            const seqA = a.sequence !== undefined ? a.sequence : -1
+            const seqB = b.sequence !== undefined ? b.sequence : -1
+            return seqA - seqB
+          })
+          setGuiState({ ...data.guiState, logMessages: sortedLogs })
         } else {
           setGuiState(data.guiState)
         }
@@ -381,16 +376,18 @@ export default function WorkerDetail() {
                   return prev // No new logs to add
                 }
                 
-                // Merge and sort by sequence then timestamp
+                // Merge and sort by timestamp first (ensures different runs are ordered correctly),
+                // then by sequence as tiebreaker (for messages with same timestamp from parallel batches)
                 const merged = [...existingLogs, ...newLogs].sort((a: any, b: any) => {
-                  const seqA = a.sequence !== undefined ? a.sequence : -1
-                  const seqB = b.sequence !== undefined ? b.sequence : -1
-                  if (seqA !== seqB) {
-                    return seqA - seqB
-                  }
                   const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0
                   const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0
-                  return timeA - timeB
+                  if (timeA !== timeB) {
+                    return timeA - timeB
+                  }
+                  // Same timestamp: use sequence as tiebreaker
+                  const seqA = a.sequence !== undefined ? a.sequence : -1
+                  const seqB = b.sequence !== undefined ? b.sequence : -1
+                  return seqA - seqB
                 })
                 
                 return { ...prev, logMessages: merged }
