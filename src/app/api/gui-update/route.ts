@@ -206,173 +206,108 @@ export async function POST(request: NextRequest) {
 
     // Handle log_batch messages (batched logs for efficiency)
     if (messageType === 'log_batch' && message.logs && Array.isArray(message.logs)) {
-      const batchSequence = message.sequence !== undefined ? message.sequence : -1
       const batchSize = message.logs.length
-      const msgPreviews = message.logs.slice(0, 3).map((m: any) => (m.message || '').substring(0, 30))
-      console.log(`[DEBUG] Received log_batch seq=${batchSequence} with ${batchSize} messages:`, msgPreviews)
       
       // Use transaction to prevent race conditions when multiple batches arrive concurrently
       try {
         await prisma.$transaction(async (tx) => {
-        // Re-read GUI state within transaction to get latest data, or create if it doesn't exist
-        let currentGuiState = await tx.guiState.findUnique({
-          where: { workerId: worker.id }
-        })
-        
-        if (!currentGuiState) {
-          // Create GUI state if it doesn't exist (can happen in race conditions)
-          console.log(`[DEBUG] Creating GUI state for worker ${worker.id} within transaction`)
-          currentGuiState = await tx.guiState.create({
+          // Re-read GUI state within transaction to get latest data, or create if it doesn't exist
+          let currentGuiState = await tx.guiState.findUnique({
+            where: { workerId: worker.id }
+          })
+          
+          if (!currentGuiState) {
+            // Create GUI state if it doesn't exist (can happen in race conditions)
+            currentGuiState = await tx.guiState.create({
+              data: {
+                workerId: worker.id,
+                stage: '',
+                progress: 0,
+                logMessages: [],
+                status: workerStatus,
+                warningCount: 0,
+                errorCount: 0
+              }
+            })
+          }
+          
+          const logMessages = Array.isArray(currentGuiState.logMessages) ? [...currentGuiState.logMessages] : []
+          const beforeCount = logMessages.length
+          
+          // Track warnings and errors from existing logs
+          let warningCount = 0
+          let errorCount = 0
+          logMessages.forEach((log: any) => {
+            const lt = log.logType || 'default'
+            if (lt === 'warning' || lt === 'highlight') warningCount++
+            if (lt === 'error' || lt === 'fatal') errorCount++
+          })
+          
+          // Create set of existing message keys for duplicate detection (message + timestamp)
+          const existingMessageKeys = new Set<string>()
+          logMessages.forEach((log: any) => {
+            const key = `${log.message}|${log.timestamp}`
+            existingMessageKeys.add(key)
+          })
+          
+          // Process each log in the batch
+          const newLogs: Array<{message: string, logType: string, timestamp: string}> = []
+          
+          for (const logMsg of message.logs) {
+            const logType = logMsg.log_type || 'default'
+            
+            // Convert UNIX timestamp (seconds) to ISO string if needed
+            let logTimestamp: string
+            const logTs = logMsg.timestamp || timestamp
+            if (typeof logTs === 'number') {
+              // Python sends time.time() which is seconds since epoch
+              logTimestamp = new Date(logTs * 1000).toISOString()
+            } else if (logTs) {
+              logTimestamp = logTs
+            } else {
+              logTimestamp = new Date().toISOString()
+            }
+            
+            // Simple duplicate detection: message + timestamp
+            const key = `${logMsg.message}|${logTimestamp}`
+            if (!existingMessageKeys.has(key)) {
+              existingMessageKeys.add(key)
+              newLogs.push({
+                message: logMsg.message,
+                logType: logType,
+                timestamp: logTimestamp
+              })
+              
+              // Update counts
+              if (logType === 'warning' || logType === 'highlight') warningCount++
+              if (logType === 'error' || logType === 'fatal') errorCount++
+            }
+          }
+          
+          // Append new logs (single-threaded executor ensures order)
+          logMessages.push(...newLogs)
+          
+          const afterCount = logMessages.length
+          const actuallyAdded = afterCount - beforeCount
+          
+          // Update GUI state within transaction
+          await tx.guiState.update({
+            where: { workerId: worker.id },
             data: {
-              workerId: worker.id,
-              stage: '',
-              progress: 0,
-              logMessages: [],
-              status: workerStatus,
-              warningCount: 0,
-              errorCount: 0
+              logMessages: logMessages as any, // Cast to any to satisfy Prisma Json[] type requirement
+              warningCount: warningCount,
+              errorCount: errorCount,
+              updatedAt: new Date()
             }
           })
-        }
-        
-        const logMessages = Array.isArray(currentGuiState.logMessages) ? [...currentGuiState.logMessages] : []
-        const beforeCount = logMessages.length
-        
-        // Track warnings and errors from existing logs
-        let warningCount = 0
-        let errorCount = 0
-        logMessages.forEach((log: any) => {
-          const lt = log.logType || 'default'
-          if (lt === 'warning' || lt === 'highlight') warningCount++
-          if (lt === 'error' || lt === 'fatal') errorCount++
-        })
-        
-        // Process each log in the batch
-        const newLogs: Array<{message: string, logType: string, timestamp: string, sequence?: number, batchIndex?: number}> = []
-        
-        for (const logMsg of message.logs) {
-          const logType = logMsg.log_type || 'default'
           
-          // Convert UNIX timestamp (seconds) to ISO string if needed
-          let logTimestamp: string
-          const logTs = logMsg.timestamp || timestamp
-          if (typeof logTs === 'number') {
-            // Python sends time.time() which is seconds since epoch
-            logTimestamp = new Date(logTs * 1000).toISOString()
-          } else if (logTs) {
-            logTimestamp = logTs
-          } else {
-            logTimestamp = new Date().toISOString()
-          }
-          
-          newLogs.push({
-            message: logMsg.message,
-            logType: logType,
-            timestamp: logTimestamp,
-            sequence: batchSequence >= 0 ? batchSequence : undefined,
-            batchIndex: logMsg.batch_index !== undefined ? logMsg.batch_index : undefined  // Preserve order within batch
-          })
-          
-          // Update counts
-          if (logType === 'warning' || logType === 'highlight') warningCount++
-          if (logType === 'error' || logType === 'fatal') errorCount++
-        }
-        
-        // Prevent duplicates: check if messages already exist (same message + timestamp + sequence + batchIndex)
-        // Use sequence + batchIndex to distinguish between retries vs. actual duplicates
-        // This allows same message text with different timestamps/sequences to coexist
-        const existingMessageKeys = new Set<string>()
-        logMessages.forEach((log: any) => {
-          // Include sequence and batchIndex in key to uniquely identify messages
-          const seq = log.sequence !== undefined ? log.sequence : 'none'
-          const batchIdx = log.batchIndex !== undefined ? log.batchIndex : 'none'
-          const key = `${log.message}|${log.timestamp}|${seq}|${batchIdx}`
-          existingMessageKeys.add(key)
+          // Also update updateData for later use
+          updateData.logMessages = logMessages
+          updateData.warningCount = warningCount
+          updateData.errorCount = errorCount
         })
-        
-        // Filter out duplicates from new logs before adding
-        const uniqueNewLogs = newLogs.filter((log: any) => {
-          const seq = log.sequence !== undefined ? log.sequence : 'none'
-          const batchIdx = log.batchIndex !== undefined ? log.batchIndex : 'none'
-          const key = `${log.message}|${log.timestamp}|${seq}|${batchIdx}`
-          if (existingMessageKeys.has(key)) {
-            console.log(`[DEBUG] Skipping duplicate message (seq=${seq}, batchIdx=${batchIdx}): ${log.message.substring(0, 50)}`)
-            return false
-          }
-          existingMessageKeys.add(key)
-          return true
-        })
-        
-        // Log if any messages were filtered
-        if (uniqueNewLogs.length < newLogs.length) {
-          console.log(`[DEBUG] Batch seq=${batchSequence}: Filtered ${newLogs.length - uniqueNewLogs.length} duplicates, keeping ${uniqueNewLogs.length} unique messages`)
-          // Log which messages were filtered for debugging
-          newLogs.forEach((log: any, idx: number) => {
-            if (!uniqueNewLogs.includes(log)) {
-              const seq = log.sequence !== undefined ? log.sequence : 'none'
-              const batchIdx = log.batchIndex !== undefined ? log.batchIndex : 'none'
-              console.log(`[DEBUG] Filtered message ${idx}: "${log.message.substring(0, 50)}" (seq=${seq}, batchIdx=${batchIdx}, ts=${log.timestamp})`)
-            }
-          })
-        }
-        
-        // Add new logs to existing logs
-        logMessages.push(...uniqueNewLogs)
-        
-        // Sort logs by timestamp, then sequence, then batchIndex to handle out-of-order batches
-        logMessages.sort((a: any, b: any) => {
-          // First compare by timestamp
-          const timeA = new Date(a.timestamp).getTime()
-          const timeB = new Date(b.timestamp).getTime()
-          if (timeA !== timeB) {
-            return timeA - timeB
-          }
-          // If timestamps are equal, use sequence number if available (for ordering batches)
-          if (a.sequence !== undefined && b.sequence !== undefined) {
-            if (a.sequence !== b.sequence) {
-              return a.sequence - b.sequence
-            }
-            // If same sequence (same batch), use batchIndex to preserve order within batch
-            if (a.batchIndex !== undefined && b.batchIndex !== undefined) {
-              return a.batchIndex - b.batchIndex
-            }
-          }
-          // If only one has sequence, prefer the one with sequence (shouldn't happen)
-          if (a.sequence !== undefined) return -1
-          if (b.sequence !== undefined) return 1
-          return 0
-        })
-        
-        const afterCount = logMessages.length
-        const actuallyAdded = afterCount - beforeCount
-        const filteredCount = newLogs.length - uniqueNewLogs.length
-        console.log(`[DEBUG] Batch seq=${batchSequence}: ${beforeCount} -> ${afterCount} logs (added ${actuallyAdded} unique, filtered ${filteredCount} duplicates)`)
-        
-        // Log message previews for debugging
-        if (uniqueNewLogs.length > 0) {
-          const previews = uniqueNewLogs.slice(0, 3).map((log: any) => log.message.substring(0, 40))
-          console.log(`[DEBUG] Batch seq=${batchSequence} messages:`, previews)
-        }
-        
-        // Update GUI state within transaction
-        await tx.guiState.update({
-          where: { workerId: worker.id },
-          data: {
-            logMessages: logMessages as any, // Cast to any to satisfy Prisma Json[] type requirement
-            warningCount: warningCount,
-            errorCount: errorCount,
-            updatedAt: new Date()
-          }
-        })
-        
-        // Also update updateData for later use
-        updateData.logMessages = logMessages
-        updateData.warningCount = warningCount
-        updateData.errorCount = errorCount
-        })
-        console.log(`[DEBUG] Batch seq=${batchSequence}: Transaction completed successfully`)
       } catch (txError) {
-        console.error(`[DEBUG] Batch seq=${batchSequence}: Transaction failed:`, txError)
+        console.error(`[DEBUG] Batch transaction failed:`, txError)
         // Re-throw to be caught by outer error handler
         throw txError
       }

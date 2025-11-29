@@ -596,8 +596,13 @@ export default function WorkerDetail() {
                 logType === 'caller' ? 'text-gray-500' :
                 'text-gray-300'
               
+              // Use message + timestamp as unique key (fallback to index if missing)
+              const uniqueKey = log.timestamp && log.message 
+                ? `${log.timestamp}-${log.message.substring(0, 50)}` 
+                : `log-${idx}`
+              
               return (
-                <div key={idx} className={`text-sm ${colorClass} font-mono whitespace-pre`}>
+                <div key={uniqueKey} className={`text-sm ${colorClass} font-mono whitespace-pre`}>
                   <span className="text-gray-600 text-xs">
                     {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : ''}
                   </span>
