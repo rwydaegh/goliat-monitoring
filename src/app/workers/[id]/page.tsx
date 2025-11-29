@@ -32,7 +32,7 @@ function GuiScreenshots({ workerId, workerStatus }: { workerId: string; workerSt
   // Check if worker is inactive (idle or stale)
   const isWorkerInactive = workerStatus?.toUpperCase() === 'IDLE' || workerStatus?.toUpperCase() === 'STALE'
 
-  // Auto-refresh images every 60 seconds (1 minute), but only if worker is active
+  // Auto-refresh images every 5 seconds, but only if worker is active
   useEffect(() => {
     // Don't auto-refresh if worker is inactive
     if (isWorkerInactive) {
@@ -49,7 +49,7 @@ function GuiScreenshots({ workerId, workerStatus }: { workerId: string; workerSt
       setImageTimestamps(newTimestamps)
       // Clear errors when timestamp updates to retry loading (only for active workers)
       setImageErrors(new Set())
-    }, 60000) // Changed to 60 seconds (1 minute) to reduce bandwidth
+    }, 5000) // 5 seconds to match screenshot capture frequency
 
     return () => clearInterval(interval)
   }, [isWorkerInactive])
