@@ -236,7 +236,27 @@ export default function WorkerDetail() {
         }
         
         setWorker(data.worker)
-        setGuiState(data.guiState)
+        
+        // Safety: Sort log messages by sequence number (then timestamp) as backup
+        // Server should already sort, but this ensures frontend always displays correctly
+        if (data.guiState?.logMessages) {
+          const sortedLogs = [...data.guiState.logMessages].sort((a: any, b: any) => {
+            // First by sequence (batch order)
+            const seqA = a.sequence !== undefined ? a.sequence : -1
+            const seqB = b.sequence !== undefined ? b.sequence : -1
+            if (seqA !== seqB) {
+              return seqA - seqB
+            }
+            // Then by timestamp within same sequence
+            const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0
+            const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0
+            return timeA - timeB
+          })
+          setGuiState({ ...data.guiState, logMessages: sortedLogs })
+        } else {
+          setGuiState(data.guiState)
+        }
+        
         setLoading(false)
       } catch (error) {
         console.error('Error fetching worker details:', error)

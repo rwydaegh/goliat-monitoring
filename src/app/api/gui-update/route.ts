@@ -248,7 +248,8 @@ export async function POST(request: NextRequest) {
           })
           
           // Process each log in the batch
-          const newLogs: Array<{message: string, logType: string, timestamp: string}> = []
+          const batchSequence = message.sequence !== undefined ? message.sequence : -1
+          const newLogs: Array<{message: string, logType: string, timestamp: string, sequence?: number}> = []
           
           for (const logMsg of message.logs) {
             const logType = logMsg.log_type || 'default'
@@ -272,7 +273,8 @@ export async function POST(request: NextRequest) {
               newLogs.push({
                 message: logMsg.message,
                 logType: logType,
-                timestamp: logTimestamp
+                timestamp: logTimestamp,
+                sequence: batchSequence >= 0 ? batchSequence : undefined  // Store sequence for sorting
               })
               
               // Update counts incrementally
@@ -281,8 +283,26 @@ export async function POST(request: NextRequest) {
             }
           }
           
-          // Append new logs (single-threaded executor ensures order)
+          // Append new logs
           logMessages.push(...newLogs)
+          
+          // Sort by sequence number if batches arrived out of order (parallel sending)
+          // Then by timestamp within same sequence
+          if (batchSequence >= 0) {
+            // Only sort if we have sequence numbers (parallel batches)
+            logMessages.sort((a: any, b: any) => {
+              // First by sequence (batch order)
+              const seqA = a.sequence !== undefined ? a.sequence : -1
+              const seqB = b.sequence !== undefined ? b.sequence : -1
+              if (seqA !== seqB) {
+                return seqA - seqB
+              }
+              // Then by timestamp within same sequence
+              const timeA = new Date(a.timestamp).getTime()
+              const timeB = new Date(b.timestamp).getTime()
+              return timeA - timeB
+            })
+          }
           
           const afterCount = logMessages.length
           const actuallyAdded = afterCount - beforeCount
