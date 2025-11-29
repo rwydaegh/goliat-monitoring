@@ -4,21 +4,30 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Computer, Activity, Clock, ArrowLeft, Trash2 } from 'lucide-react'
 
+// Exclude 'Progress' tab - its data is already displayed via other widgets
+const SCREENSHOT_TAB_NAMES = [
+  'Timings',
+  'Timings Piecharts',
+  'Time Remaining',
+  'Overall Progress',
+  'System Utilization'
+] as const
+
 // GUI Screenshots Component
 function GuiScreenshots({ workerId, workerStatus }: { workerId: string; workerStatus: string }) {
   const [activeTab, setActiveTab] = useState('System Utilization')
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
-  const [imageTimestamps, setImageTimestamps] = useState<Record<string, number>>({})
+  // Initialize with a single timestamp to prevent re-fetching on every render
+  const initialTimestamp = useRef(Date.now())
+  const [imageTimestamps, setImageTimestamps] = useState<Record<string, number>>(() => {
+    // Initialize all tabs with the same timestamp to prevent unnecessary requests
+    const initial: Record<string, number> = {}
+    SCREENSHOT_TAB_NAMES.forEach(tabName => {
+      initial[tabName] = initialTimestamp.current
+    })
+    return initial
+  })
   const [lastSuccessfulImageUrls, setLastSuccessfulImageUrls] = useState<Record<string, string>>({})
-
-  // Exclude 'Progress' tab - its data is already displayed via other widgets
-  const tabNames = [
-    'Timings',
-    'Timings Piecharts',
-    'Time Remaining',
-    'Overall Progress',
-    'System Utilization'
-  ]
 
   // Check if worker is inactive (idle or stale)
   const isWorkerInactive = workerStatus?.toUpperCase() === 'IDLE' || workerStatus?.toUpperCase() === 'STALE'
@@ -34,7 +43,7 @@ function GuiScreenshots({ workerId, workerStatus }: { workerId: string; workerSt
       // Update timestamp to bust browser cache
       const now = Date.now()
       const newTimestamps: Record<string, number> = {}
-      tabNames.forEach(tabName => {
+      SCREENSHOT_TAB_NAMES.forEach(tabName => {
         newTimestamps[tabName] = now
       })
       setImageTimestamps(newTimestamps)
@@ -87,7 +96,8 @@ function GuiScreenshots({ workerId, workerStatus }: { workerId: string; workerSt
   }
 
   const getImageUrl = (tabName: string) => {
-    const timestamp = imageTimestamps[tabName] || Date.now()
+    // Use the timestamp from state, or fall back to initial timestamp (never use Date.now() on every render)
+    const timestamp = imageTimestamps[tabName] || initialTimestamp.current
     const sanitizedTabName = encodeURIComponent(tabName)
     return `/api/gui-screenshots/${workerId}/${sanitizedTabName}?t=${timestamp}`
   }
@@ -106,7 +116,7 @@ function GuiScreenshots({ workerId, workerStatus }: { workerId: string; workerSt
       {/* Tab Navigation */}
       <div className="border-b border-gray-200 mb-4">
         <nav className="-mb-px flex space-x-8 overflow-x-auto">
-          {tabNames.map((tabName) => (
+          {SCREENSHOT_TAB_NAMES.map((tabName) => (
             <button
               key={tabName}
               onClick={() => handleTabChange(tabName)}
@@ -127,7 +137,7 @@ function GuiScreenshots({ workerId, workerStatus }: { workerId: string; workerSt
 
       {/* Tab Content */}
       <div className="relative">
-        {tabNames.map((tabName) => (
+        {SCREENSHOT_TAB_NAMES.map((tabName) => (
           <div
             key={tabName}
             className={activeTab === tabName ? 'block' : 'hidden'}
