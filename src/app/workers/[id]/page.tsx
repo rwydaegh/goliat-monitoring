@@ -282,31 +282,47 @@ export default function WorkerDetail() {
       shouldAutoScrollRef.current = true // Default to auto-scroll on new worker
       scrollHandlerAttachedRef.current = false // Reset handler attachment tracking
       
-      // Initial fetch to get current state
+      // Initial fetch to get current state (only once)
       fetchWorkerDetails()
       
       // Try SSE first for real-time updates, fallback to polling if unavailable
       let eventSource: EventSource | null = null
       let pollInterval: NodeJS.Timeout | null = null
       let sseFailed = false
+      let sseConnected = false
       
       // Helper function to start polling fallback
       const startPolling = () => {
-        if (pollInterval) return // Already polling
-        pollInterval = setInterval(fetchWorkerDetails, 1000)
+        if (pollInterval || sseConnected) {
+          console.log(`[SSE] Skipping polling - already polling or SSE connected`)
+          return // Already polling or SSE is working
+        }
+        console.warn(`[SSE] Starting polling fallback for worker ${workerId}`)
+        pollInterval = setInterval(() => {
+          console.log(`[POLL] Fetching worker details (polling fallback)`)
+          fetchWorkerDetails()
+        }, 1000)
       }
       
       // Try SSE connection
       try {
+        console.log(`[SSE] Attempting to connect to /api/logs/${workerId}/stream`)
         eventSource = new EventSource(`/api/logs/${workerId}/stream`)
         
         eventSource.onopen = () => {
-          console.log(`[SSE] Connected to log stream for worker ${workerId}`)
+          console.log(`[SSE] ✅ Connected to log stream for worker ${workerId}`)
           sseFailed = false
+          sseConnected = true
           // Clear polling timeout since SSE connected successfully
           if (pollTimeout) {
             clearTimeout(pollTimeout)
             pollTimeout = null
+          }
+          // Stop polling if it was started
+          if (pollInterval) {
+            console.log(`[SSE] Stopping polling - SSE connected`)
+            clearInterval(pollInterval)
+            pollInterval = null
           }
         }
         
@@ -392,11 +408,14 @@ export default function WorkerDetail() {
         }
         
         eventSource.onerror = (error) => {
-          console.warn('[SSE] Connection error, falling back to polling:', error)
-          sseFailed = true
-          eventSource?.close()
-          eventSource = null
-          startPolling()
+          if (!sseConnected) {
+            console.warn(`[SSE] Connection error for worker ${workerId}, will fallback to polling:`, error)
+            sseFailed = true
+            // Don't close immediately - EventSource will try to reconnect
+            // Only start polling if SSE hasn't connected after timeout
+          } else {
+            console.warn(`[SSE] Connection error after successful connection, EventSource will reconnect`)
+          }
         }
       } catch (error) {
         // SSE not supported or failed to create, use polling
@@ -405,14 +424,16 @@ export default function WorkerDetail() {
         startPolling()
       }
       
-      // If SSE didn't connect within 2 seconds, start polling as backup
+      // If SSE didn't connect within 3 seconds, start polling as backup
       // Note: This timeout will be cleared if SSE connects successfully
       let pollTimeout: NodeJS.Timeout | null = setTimeout(() => {
-        if (!sseFailed && eventSource?.readyState !== EventSource.OPEN) {
-          console.warn('[SSE] Connection timeout, starting polling fallback')
+        if (!sseConnected && eventSource?.readyState !== EventSource.OPEN) {
+          console.warn(`[SSE] Connection timeout after 3s for worker ${workerId}, starting polling fallback`)
+          console.warn(`[SSE] EventSource readyState: ${eventSource?.readyState} (0=CONNECTING, 1=OPEN, 2=CLOSED)`)
+          sseFailed = true
           startPolling()
         }
-      }, 2000)
+      }, 3000)
       
       return () => {
         if (pollTimeout) {
