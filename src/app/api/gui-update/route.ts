@@ -174,18 +174,49 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle overall_progress
+    // Overall progress should always be monotonic (cumulative across all stages)
     if (messageType === 'overall_progress' && message.current !== undefined && message.total !== undefined) {
-      updateData.progress = (message.current / message.total) * 100
+      const newProgress = (message.current / message.total) * 100
+      // Only update if new progress is higher (prevent progress from going backwards)
+      // This handles cases where sync_progress() reads a reset progress bar or
+      // messages arrive out of order
+      const currentProgress = guiState.progress ?? 0
+      if (newProgress >= currentProgress) {
+        updateData.progress = newProgress
+      } else {
+        // Keep existing progress if new value is lower (don't go backwards)
+        updateData.progress = currentProgress
+      }
     }
 
     // Handle stage_progress
     if (messageType === 'stage_progress') {
+      const stageNameChanged = message.name && message.name !== guiState.stage
+      
       if (message.name) {
         updateData.stage = message.name
       }
+      
       if (message.current !== undefined && message.total !== undefined) {
         // Store stage progress separately from overall progress
-        updateData.stageProgress = (message.current / message.total) * 100
+        const newStageProgress = (message.current / message.total) * 100
+        
+        // Allow progress to reset when stage name changes (new stage starts)
+        // But within the same stage, enforce monotonic increases
+        // This prevents sync_progress() from causing backwards movement within a stage
+        if (stageNameChanged) {
+          // New stage - allow reset to any value (including 0)
+          updateData.stageProgress = newStageProgress
+        } else {
+          // Same stage - only allow progress to increase
+          const currentStageProgress = guiState.stageProgress ?? 0
+          if (newStageProgress >= currentStageProgress) {
+            updateData.stageProgress = newStageProgress
+          } else {
+            // Keep existing progress if new value is lower (don't go backwards within same stage)
+            updateData.stageProgress = currentStageProgress
+          }
+        }
       }
     }
 
@@ -308,8 +339,8 @@ export async function POST(request: NextRequest) {
           
           // Sort by sequence number if batches arrived out of order (parallel sending)
           // Then by timestamp within same sequence
+          // Only sort if we have sequence numbers (parallel batches)
           if (batchSequence >= 0) {
-            // Only sort if we have sequence numbers (parallel batches)
             logMessages.sort((a: any, b: any) => {
               // First by sequence (batch order)
               const seqA = a.sequence !== undefined ? a.sequence : -1
@@ -323,9 +354,6 @@ export async function POST(request: NextRequest) {
               return timeA - timeB
             })
           }
-          
-          const afterCount = logMessages.length
-          const actuallyAdded = afterCount - beforeCount
           
           // Update GUI state within transaction
           await tx.guiState.update({
