@@ -217,12 +217,46 @@ export async function POST(request: NextRequest) {
     if (messageType === 'log_batch' && message.logs && Array.isArray(message.logs)) {
       const batchSize = message.logs.length
       
-      // Declare newLogs outside transaction so it's accessible for SSE broadcast after transaction completes
+      // SSE-FIRST APPROACH: Broadcast immediately, then write to DB asynchronously
+      // This ensures near-instant updates for users while database catches up
       const newLogs: Array<{message: string, logType: string, timestamp: string, sequence?: number}> = []
+      const batchSequence = message.sequence !== undefined ? message.sequence : -1
       
-      // Use transaction to prevent race conditions when multiple batches arrive concurrently
-      try {
-        await prisma.$transaction(async (tx) => {
+      // Process logs for SSE broadcast (fast, no DB)
+      for (const logMsg of message.logs) {
+        const logType = logMsg.log_type || 'default'
+        
+        // Convert UNIX timestamp (seconds) to ISO string if needed
+        let logTimestamp: string
+        const logTs = logMsg.timestamp || timestamp
+        if (typeof logTs === 'number') {
+          logTimestamp = new Date(logTs * 1000).toISOString()
+        } else if (logTs) {
+          logTimestamp = logTs
+        } else {
+          logTimestamp = new Date().toISOString()
+        }
+        
+        newLogs.push({
+          message: logMsg.message,
+          logType: logType,
+          timestamp: logTimestamp,
+          sequence: batchSequence >= 0 ? batchSequence : undefined
+        })
+      }
+      
+      // BROADCAST IMMEDIATELY via SSE (instant, non-blocking)
+      if (newLogs.length > 0) {
+        try {
+          broadcastLogs(worker.id, newLogs)
+        } catch (error) {
+          console.error(`[DEBUG] SSE broadcast failed for worker ${worker.id}:`, error)
+        }
+      }
+      
+      // Write to database ASYNCHRONOUSLY (don't block response)
+      // Fire and forget - database is just for persistence, SSE is for real-time
+      prisma.$transaction(async (tx) => {
           // Re-read GUI state within transaction to get latest data, or create if it doesn't exist
           // Use upsert to handle race conditions (multiple batches arriving simultaneously)
           let currentGuiState = await tx.guiState.upsert({
@@ -246,19 +280,9 @@ export async function POST(request: NextRequest) {
           let warningCount = currentGuiState.warningCount || 0
           let errorCount = currentGuiState.errorCount || 0
           
-          // Process each log in the batch
-          const batchSequence = message.sequence !== undefined ? message.sequence : -1
-          
-          // Clear newLogs array for this batch (reuse the outer scope variable)
-          newLogs.length = 0
-          
-          // Build duplicate detection set
-          // For parallel batches (with sequence numbers), check all messages to handle out-of-order arrivals
-          // For sequential batches, only check recent 100 (performance optimization)
+          // Simplified duplicate detection (only check recent 100 for performance)
           const existingMessageKeys = new Set<string>()
-          const messagesToCheck = batchSequence >= 0 
-            ? logMessages  // Parallel batches: check all (out-of-order arrivals possible)
-            : logMessages.slice(-100)  // Sequential batches: only check recent 100
+          const messagesToCheck = logMessages.slice(-100)  // Only check recent 100
           
           messagesToCheck.forEach((log: any) => {
             const seq = log.sequence !== undefined ? log.sequence : 'none'
@@ -266,40 +290,21 @@ export async function POST(request: NextRequest) {
             existingMessageKeys.add(key)
           })
           
-          for (const logMsg of message.logs) {
-            const logType = logMsg.log_type || 'default'
-            
-            // Convert UNIX timestamp (seconds) to ISO string if needed
-            let logTimestamp: string
-            const logTs = logMsg.timestamp || timestamp
-            if (typeof logTs === 'number') {
-              // Python sends time.time() which is seconds since epoch
-              logTimestamp = new Date(logTs * 1000).toISOString()
-            } else if (logTs) {
-              logTimestamp = logTs
-            } else {
-              logTimestamp = new Date().toISOString()
-            }
-            
-            // Duplicate detection: message + timestamp + sequence (handles parallel batches)
-            const key = `${logMsg.message}|${logTimestamp}|${batchSequence >= 0 ? batchSequence : 'none'}`
+          // Filter out duplicates from newLogs (already broadcast via SSE)
+          const logsToAdd = newLogs.filter((log) => {
+            const key = `${log.message}|${log.timestamp}|${batchSequence >= 0 ? batchSequence : 'none'}`
             if (!existingMessageKeys.has(key)) {
               existingMessageKeys.add(key)
-              newLogs.push({
-                message: logMsg.message,
-                logType: logType,
-                timestamp: logTimestamp,
-                sequence: batchSequence >= 0 ? batchSequence : undefined  // Store sequence for sorting
-              })
-              
               // Update counts incrementally
-              if (logType === 'warning' || logType === 'highlight') warningCount++
-              if (logType === 'error' || logType === 'fatal') errorCount++
+              if (log.logType === 'warning' || log.logType === 'highlight') warningCount++
+              if (log.logType === 'error' || log.logType === 'fatal') errorCount++
+              return true
             }
-          }
+            return false
+          })
           
           // Append new logs
-          logMessages.push(...newLogs)
+          logMessages.push(...logsToAdd)
           
           // Sort by sequence number if batches arrived out of order (parallel sending)
           // Then by timestamp within same sequence
@@ -337,22 +342,10 @@ export async function POST(request: NextRequest) {
           updateData.logMessages = logMessages
           updateData.warningCount = warningCount
           updateData.errorCount = errorCount
+        }).catch((txError) => {
+          // Log but don't fail - database is just for persistence
+          console.error(`[DEBUG] Async batch transaction failed (non-critical):`, txError)
         })
-        
-        // Broadcast new logs to SSE clients (non-blocking, fire-and-forget)
-        if (newLogs.length > 0) {
-          try {
-            broadcastLogs(worker.id, newLogs)
-          } catch (error) {
-            // Don't fail the request if SSE broadcast fails
-            console.error(`[DEBUG] SSE broadcast failed for worker ${worker.id}:`, error)
-          }
-        }
-      } catch (txError) {
-        console.error(`[DEBUG] Batch transaction failed:`, txError)
-        // Re-throw to be caught by outer error handler
-        throw txError
-      }
     }
     
     // Handle status/log messages (single log for backwards compatibility)
@@ -459,14 +452,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update GUI state
-    await prisma.guiState.update({
-      where: { workerId: worker.id },
-      data: updateData
-    })
-    
-    // Broadcast progress updates to SSE clients (non-blocking)
-    // Merge updateData with existing guiState to preserve values not being updated
+    // SSE-FIRST: Broadcast progress updates IMMEDIATELY (before database write)
     if (messageType === 'overall_progress' || messageType === 'stage_progress' || messageType === 'profiler_update' || messageType === 'sim_details' || messageType === 'simulation_details') {
       try {
         // Convert Date objects to ISO strings for JSON serialization
@@ -492,63 +478,68 @@ export async function POST(request: NextRequest) {
         console.error(`[DEBUG] SSE progress broadcast failed:`, error)
       }
     }
+    
+    // Write to database ASYNCHRONOUSLY (don't block response)
+    prisma.guiState.update({
+      where: { workerId: worker.id },
+      data: updateData
+    }).catch((error) => {
+      console.error(`[DEBUG] Async GUI state update failed (non-critical):`, error)
+    })
 
-    // Also update assignment progress if worker has an active assignment
-    try {
-      const activeAssignment = await prisma.assignment.findFirst({
-        where: {
-          workerId: worker.id,
-          status: 'RUNNING'
-        }
-      })
-
+    // Also update assignment progress ASYNCHRONOUSLY (don't block response)
+    prisma.assignment.findFirst({
+      where: {
+        workerId: worker.id,
+        status: 'RUNNING'
+      }
+    }).then((activeAssignment) => {
       if (activeAssignment) {
         // Update assignment progress based on GUI state
         const newProgress = updateData.progress !== undefined ? updateData.progress : guiState.progress
         const newStage = updateData.stage !== undefined ? updateData.stage : guiState.stage
 
-        await prisma.assignment.update({
+        prisma.assignment.update({
           where: { id: activeAssignment.id },
           data: {
             progress: newProgress,
             currentStage: newStage || activeAssignment.currentStage,
             eta: updateData.eta || activeAssignment.eta
           }
-        })
-
-        // Update super study progress
-        const superStudy = await prisma.superStudy.findUnique({
-          where: { id: activeAssignment.superStudyId },
-          include: {
-            assignments: true
-          }
-        })
-
-        if (superStudy) {
-          const completedCount = superStudy.assignments.filter(a => a.status === 'COMPLETED').length
-          const totalAssignments = superStudy.totalAssignments
-          // Calculate progress based on sum of all assignment progress values
-          const totalProgress = superStudy.assignments.reduce((sum, a) => sum + a.progress, 0)
-          const masterProgress = totalAssignments > 0 ? (totalProgress / totalAssignments) : 0
-
-          await prisma.superStudy.update({
-            where: { id: superStudy.id },
-            data: {
-              completedAssignments: completedCount,
-              masterProgress: masterProgress,
-              status: completedCount === totalAssignments ? 'COMPLETED' : 'RUNNING'
+        }).then(() => {
+          // Update super study progress
+          return prisma.superStudy.findUnique({
+            where: { id: activeAssignment.superStudyId },
+            include: {
+              assignments: true
             }
           })
-        }
-      }
-    } catch (assignmentError) {
-      // Log but don't fail the request if assignment update fails
-      console.warn('Failed to update assignment progress:', assignmentError)
-    }
+        }).then((superStudy) => {
+          if (superStudy) {
+            const completedCount = superStudy.assignments.filter(a => a.status === 'COMPLETED').length
+            const totalAssignments = superStudy.totalAssignments
+            const totalProgress = superStudy.assignments.reduce((sum, a) => sum + a.progress, 0)
+            const masterProgress = totalAssignments > 0 ? (totalProgress / totalAssignments) : 0
 
-    // Also create a progress event for tracking (optional - don't fail if this fails)
-    try {
-      await prisma.progressEvent.create({
+            return prisma.superStudy.update({
+              where: { id: superStudy.id },
+              data: {
+                completedAssignments: completedCount,
+                masterProgress: masterProgress,
+                status: completedCount === totalAssignments ? 'COMPLETED' : 'RUNNING'
+              }
+            })
+          }
+        }).catch((error) => {
+          console.warn('Failed to update assignment/superStudy progress (async):', error)
+        })
+      }
+    }).catch((error) => {
+      console.warn('Failed to find active assignment (async):', error)
+    })
+
+    // Also create a progress event ASYNCHRONOUSLY (don't block response)
+    prisma.progressEvent.create({
         data: {
           workerId: worker.id,
           eventType: messageType === 'overall_progress' ? 'PROGRESS' :
@@ -563,12 +554,13 @@ export async function POST(request: NextRequest) {
           eta: updateData.eta || guiState.eta,
           data: message
         }
+      }).catch((eventError) => {
+        // Log but don't fail the request if progress event creation fails
+        console.warn('Failed to create progress event (async):', eventError)
       })
-    } catch (eventError) {
-      // Log but don't fail the request if progress event creation fails
-      console.warn('Failed to create progress event:', eventError)
-    }
 
+    // Return response IMMEDIATELY (don't wait for database writes)
+    // SSE broadcasts have already happened, users see updates instantly
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error processing GUI update:', error)
