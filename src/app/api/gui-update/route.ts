@@ -469,16 +469,25 @@ export async function POST(request: NextRequest) {
     // Merge updateData with existing guiState to preserve values not being updated
     if (messageType === 'overall_progress' || messageType === 'stage_progress' || messageType === 'profiler_update' || messageType === 'sim_details' || messageType === 'simulation_details') {
       try {
+        // Convert Date objects to ISO strings for JSON serialization
+        const etaValue = updateData.eta !== undefined ? updateData.eta : (guiState.eta ?? null)
+        const etaString = etaValue instanceof Date ? etaValue.toISOString() : (etaValue ? new Date(etaValue).toISOString() : null)
+        
         // Merge updateData with existing guiState values (updateData only has changed fields)
         broadcastProgress(worker.id, {
           progress: updateData.progress !== undefined ? updateData.progress : (guiState.progress ?? 0),
           stage: updateData.stage !== undefined ? updateData.stage : (guiState.stage ?? ''),
           stageProgress: updateData.stageProgress !== undefined ? updateData.stageProgress : (guiState.stageProgress ?? undefined),
-          eta: updateData.eta !== undefined ? updateData.eta : (guiState.eta ?? null),
+          eta: etaString,
           simulationCount: updateData.simulationCount !== undefined ? updateData.simulationCount : (guiState.simulationCount ?? null),
           totalSimulations: updateData.totalSimulations !== undefined ? updateData.totalSimulations : (guiState.totalSimulations ?? null),
           currentCase: updateData.currentCase !== undefined ? updateData.currentCase : (guiState.currentCase ?? null)
         })
+        
+        // Debug logging for profiler_update
+        if (messageType === 'profiler_update') {
+          console.log(`[DEBUG] profiler_update received: eta_seconds=${message.eta_seconds}, eta=${etaString}`)
+        }
       } catch (error) {
         console.error(`[DEBUG] SSE progress broadcast failed:`, error)
       }

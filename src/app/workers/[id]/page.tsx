@@ -23,7 +23,7 @@ function GuiScreenshots({ workerId, workerStatus }: { workerId: string; workerSt
   // Check if worker is inactive (idle or stale)
   const isWorkerInactive = workerStatus?.toUpperCase() === 'IDLE' || workerStatus?.toUpperCase() === 'STALE'
 
-  // Auto-refresh images every 5 seconds, but only if worker is active
+  // Auto-refresh images every 60 seconds (1 minute), but only if worker is active
   useEffect(() => {
     // Don't auto-refresh if worker is inactive
     if (isWorkerInactive) {
@@ -40,7 +40,7 @@ function GuiScreenshots({ workerId, workerStatus }: { workerId: string; workerSt
       setImageTimestamps(newTimestamps)
       // Clear errors when timestamp updates to retry loading (only for active workers)
       setImageErrors(new Set())
-    }, 5000) // Changed from 1000ms (1s) to 5000ms (5s) to match screenshot capture frequency
+    }, 60000) // Changed to 60 seconds (1 minute) to reduce bandwidth
 
     return () => clearInterval(interval)
   }, [isWorkerInactive])
@@ -388,7 +388,13 @@ export default function WorkerDetail() {
             }
             
             if (data.type === 'progress') {
-              console.log(`[SSE] Received progress update via SSE`)
+              console.log(`[SSE] Received progress update via SSE`, {
+                progress: data.progress.progress,
+                stage: data.progress.stage,
+                eta: data.progress.eta,
+                simulationCount: data.progress.simulationCount,
+                totalSimulations: data.progress.totalSimulations
+              })
               // Update progress without full refetch
               setGuiState(prev => {
                 if (!prev) return prev
@@ -397,7 +403,7 @@ export default function WorkerDetail() {
                   progress: data.progress.progress,
                   stage: data.progress.stage,
                   stageProgress: data.progress.stageProgress,
-                  eta: data.progress.eta,
+                  eta: data.progress.eta, // Should be ISO string, will be parsed by Date constructor
                   simulationCount: data.progress.simulationCount,
                   totalSimulations: data.progress.totalSimulations,
                   currentCase: data.progress.currentCase
