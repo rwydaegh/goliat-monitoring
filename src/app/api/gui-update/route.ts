@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { broadcastLogs, broadcastProgress } from '@/lib/sse-connections'
 
 // Increase timeout for long-running transactions
 export const maxDuration = 30 // 30 seconds (Railway/Vercel default is 10s)
@@ -238,18 +239,23 @@ export async function POST(request: NextRequest) {
           let warningCount = currentGuiState.warningCount || 0
           let errorCount = currentGuiState.errorCount || 0
           
-          // Only check recent messages for duplicates (last 100) - much faster than checking all
-          // This prevents O(n) slowdown as logs grow
-          const recentMessages = logMessages.slice(-100)
-          const existingMessageKeys = new Set<string>()
-          recentMessages.forEach((log: any) => {
-            const key = `${log.message}|${log.timestamp}`
-            existingMessageKeys.add(key)
-          })
-          
           // Process each log in the batch
           const batchSequence = message.sequence !== undefined ? message.sequence : -1
           const newLogs: Array<{message: string, logType: string, timestamp: string, sequence?: number}> = []
+          
+          // Build duplicate detection set
+          // For parallel batches (with sequence numbers), check all messages to handle out-of-order arrivals
+          // For sequential batches, only check recent 100 (performance optimization)
+          const existingMessageKeys = new Set<string>()
+          const messagesToCheck = batchSequence >= 0 
+            ? logMessages  // Parallel batches: check all (out-of-order arrivals possible)
+            : logMessages.slice(-100)  // Sequential batches: only check recent 100
+          
+          messagesToCheck.forEach((log: any) => {
+            const seq = log.sequence !== undefined ? log.sequence : 'none'
+            const key = `${log.message}|${log.timestamp}|${seq}`
+            existingMessageKeys.add(key)
+          })
           
           for (const logMsg of message.logs) {
             const logType = logMsg.log_type || 'default'
@@ -266,8 +272,8 @@ export async function POST(request: NextRequest) {
               logTimestamp = new Date().toISOString()
             }
             
-            // Simple duplicate detection: message + timestamp
-            const key = `${logMsg.message}|${logTimestamp}`
+            // Duplicate detection: message + timestamp + sequence (handles parallel batches)
+            const key = `${logMsg.message}|${logTimestamp}|${batchSequence >= 0 ? batchSequence : 'none'}`
             if (!existingMessageKeys.has(key)) {
               existingMessageKeys.add(key)
               newLogs.push({
@@ -323,6 +329,16 @@ export async function POST(request: NextRequest) {
           updateData.warningCount = warningCount
           updateData.errorCount = errorCount
         })
+        
+        // Broadcast new logs to SSE clients (non-blocking, fire-and-forget)
+        if (newLogs.length > 0) {
+          try {
+            broadcastLogs(worker.id, newLogs)
+          } catch (error) {
+            // Don't fail the request if SSE broadcast fails
+            console.error(`[DEBUG] SSE broadcast failed for worker ${worker.id}:`, error)
+          }
+        }
       } catch (txError) {
         console.error(`[DEBUG] Batch transaction failed:`, txError)
         // Re-throw to be caught by outer error handler
@@ -371,6 +387,17 @@ export async function POST(request: NextRequest) {
       updateData.logMessages = logMessages
       updateData.warningCount = warningCount
       updateData.errorCount = errorCount
+      
+      // Broadcast single log message to SSE clients
+      try {
+        broadcastLogs(worker.id, [{
+          message: message.message,
+          logType: logType,
+          timestamp: logTimestamp
+        }])
+      } catch (error) {
+        console.error(`[DEBUG] SSE broadcast failed for single log:`, error)
+      }
     }
 
     // Handle finished message - mark assignment as completed
@@ -428,6 +455,23 @@ export async function POST(request: NextRequest) {
       where: { workerId: worker.id },
       data: updateData
     })
+    
+    // Broadcast progress updates to SSE clients (non-blocking)
+    if (messageType === 'overall_progress' || messageType === 'stage_progress' || messageType === 'profiler_update') {
+      try {
+        broadcastProgress(worker.id, {
+          progress: updateData.progress,
+          stage: updateData.stage,
+          stageProgress: updateData.stageProgress,
+          eta: updateData.eta,
+          simulationCount: updateData.simulationCount,
+          totalSimulations: updateData.totalSimulations,
+          currentCase: updateData.currentCase
+        })
+      } catch (error) {
+        console.error(`[DEBUG] SSE progress broadcast failed:`, error)
+      }
+    }
 
     // Also update assignment progress if worker has an active assignment
     try {

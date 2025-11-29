@@ -238,21 +238,31 @@ export default function WorkerDetail() {
         setWorker(data.worker)
         
         // Safety: Sort log messages by sequence number (then timestamp) as backup
+        // Only sort if sequence numbers are present (parallel batches)
         // Server should already sort, but this ensures frontend always displays correctly
-        if (data.guiState?.logMessages) {
-          const sortedLogs = [...data.guiState.logMessages].sort((a: any, b: any) => {
-            // First by sequence (batch order)
-            const seqA = a.sequence !== undefined ? a.sequence : -1
-            const seqB = b.sequence !== undefined ? b.sequence : -1
-            if (seqA !== seqB) {
-              return seqA - seqB
-            }
-            // Then by timestamp within same sequence
-            const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0
-            const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0
-            return timeA - timeB
-          })
-          setGuiState({ ...data.guiState, logMessages: sortedLogs })
+        if (data.guiState?.logMessages && data.guiState.logMessages.length > 0) {
+          // Check if any messages have sequence numbers (indicates parallel batches)
+          const hasSequenceNumbers = data.guiState.logMessages.some((log: any) => log.sequence !== undefined)
+          
+          if (hasSequenceNumbers) {
+            // Only sort if sequence numbers are present (parallel batches need sorting)
+            const sortedLogs = [...data.guiState.logMessages].sort((a: any, b: any) => {
+              // First by sequence (batch order)
+              const seqA = a.sequence !== undefined ? a.sequence : -1
+              const seqB = b.sequence !== undefined ? b.sequence : -1
+              if (seqA !== seqB) {
+                return seqA - seqB
+              }
+              // Then by timestamp within same sequence
+              const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0
+              const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0
+              return timeA - timeB
+            })
+            setGuiState({ ...data.guiState, logMessages: sortedLogs })
+          } else {
+            // No sequence numbers = sequential batches, server already sorted correctly
+            setGuiState(data.guiState)
+          }
         } else {
           setGuiState(data.guiState)
         }
@@ -272,11 +282,117 @@ export default function WorkerDetail() {
       shouldAutoScrollRef.current = true // Default to auto-scroll on new worker
       scrollHandlerAttachedRef.current = false // Reset handler attachment tracking
       
+      // Initial fetch to get current state
       fetchWorkerDetails()
       
-      // Poll for updates every 1 second for faster log updates
-      const interval = setInterval(fetchWorkerDetails, 1000)
-      return () => clearInterval(interval)
+      // Try SSE first for real-time updates, fallback to polling if unavailable
+      let eventSource: EventSource | null = null
+      let pollInterval: NodeJS.Timeout | null = null
+      let sseFailed = false
+      
+      // Helper function to start polling fallback
+      const startPolling = () => {
+        if (pollInterval) return // Already polling
+        pollInterval = setInterval(fetchWorkerDetails, 1000)
+      }
+      
+      // Try SSE connection
+      try {
+        eventSource = new EventSource(`/api/logs/${workerId}/stream`)
+        
+        eventSource.onopen = () => {
+          console.log(`[SSE] Connected to log stream for worker ${workerId}`)
+          sseFailed = false
+        }
+        
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data)
+            
+            if (data.type === 'connected') {
+              console.log(`[SSE] Connection confirmed for worker ${data.workerId}`)
+              return
+            }
+            
+            if (data.type === 'logs' && Array.isArray(data.logs)) {
+              // Append new logs to state
+              setGuiState(prev => {
+                if (!prev) return prev
+                
+                const existingLogs = prev.logMessages || []
+                const newLogs = data.logs.map((log: any) => ({
+                  ...log,
+                  sequence: log.sequence !== undefined ? log.sequence : -1
+                }))
+                
+                // Merge and sort by sequence then timestamp
+                const merged = [...existingLogs, ...newLogs].sort((a: any, b: any) => {
+                  const seqA = a.sequence !== undefined ? a.sequence : -1
+                  const seqB = b.sequence !== undefined ? b.sequence : -1
+                  if (seqA !== seqB) {
+                    return seqA - seqB
+                  }
+                  const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0
+                  const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0
+                  return timeA - timeB
+                })
+                
+                return { ...prev, logMessages: merged }
+              })
+            }
+            
+            if (data.type === 'progress') {
+              // Update progress without full refetch
+              setGuiState(prev => {
+                if (!prev) return prev
+                return {
+                  ...prev,
+                  progress: data.progress.progress,
+                  stage: data.progress.stage,
+                  stageProgress: data.progress.stageProgress,
+                  eta: data.progress.eta,
+                  simulationCount: data.progress.simulationCount,
+                  totalSimulations: data.progress.totalSimulations,
+                  currentCase: data.progress.currentCase
+                }
+              })
+            }
+          } catch (error) {
+            console.error('[SSE] Error parsing event data:', error)
+          }
+        }
+        
+        eventSource.onerror = (error) => {
+          console.warn('[SSE] Connection error, falling back to polling:', error)
+          sseFailed = true
+          eventSource?.close()
+          eventSource = null
+          startPolling()
+        }
+      } catch (error) {
+        // SSE not supported or failed to create, use polling
+        console.warn('[SSE] Not available, using polling fallback:', error)
+        sseFailed = true
+        startPolling()
+      }
+      
+      // If SSE didn't connect within 2 seconds, start polling as backup
+      const pollTimeout = setTimeout(() => {
+        if (!sseFailed && eventSource?.readyState !== EventSource.OPEN) {
+          console.warn('[SSE] Connection timeout, starting polling fallback')
+          startPolling()
+        }
+      }, 2000)
+      
+      return () => {
+        clearTimeout(pollTimeout)
+        if (eventSource) {
+          eventSource.close()
+        }
+        if (pollInterval) {
+          clearInterval(pollInterval)
+        }
+      }
     }
   }, [workerId])
 
@@ -616,10 +732,12 @@ export default function WorkerDetail() {
                 logType === 'caller' ? 'text-gray-500' :
                 'text-gray-300'
               
-              // Use message + timestamp as unique key (fallback to index if missing)
+              // Use sequence + timestamp + message as unique key
+              // Sequence ensures uniqueness even if timestamps are identical
+              const seq = log.sequence !== undefined ? log.sequence : idx
               const uniqueKey = log.timestamp && log.message 
-                ? `${log.timestamp}-${log.message.substring(0, 50)}` 
-                : `log-${idx}`
+                ? `${seq}-${log.timestamp}-${log.message.substring(0, 50)}` 
+                : `log-${seq}-${idx}`
               
               return (
                 <div key={uniqueKey} className={`text-sm ${colorClass} font-mono whitespace-pre`}>
