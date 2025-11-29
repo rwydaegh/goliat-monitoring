@@ -303,6 +303,11 @@ export default function WorkerDetail() {
         eventSource.onopen = () => {
           console.log(`[SSE] Connected to log stream for worker ${workerId}`)
           sseFailed = false
+          // Clear polling timeout since SSE connected successfully
+          if (pollTimeout) {
+            clearTimeout(pollTimeout)
+            pollTimeout = null
+          }
         }
         
         eventSource.onmessage = (event) => {
@@ -401,7 +406,8 @@ export default function WorkerDetail() {
       }
       
       // If SSE didn't connect within 2 seconds, start polling as backup
-      const pollTimeout = setTimeout(() => {
+      // Note: This timeout will be cleared if SSE connects successfully
+      let pollTimeout: NodeJS.Timeout | null = setTimeout(() => {
         if (!sseFailed && eventSource?.readyState !== EventSource.OPEN) {
           console.warn('[SSE] Connection timeout, starting polling fallback')
           startPolling()
@@ -409,7 +415,9 @@ export default function WorkerDetail() {
       }, 2000)
       
       return () => {
-        clearTimeout(pollTimeout)
+        if (pollTimeout) {
+          clearTimeout(pollTimeout)
+        }
         if (eventSource) {
           eventSource.close()
         }

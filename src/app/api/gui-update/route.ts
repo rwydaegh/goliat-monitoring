@@ -198,16 +198,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Handle simulation_details
-    if (messageType === 'simulation_details') {
-      if (message.simulation_count !== undefined) {
-        updateData.simulationCount = message.simulation_count
+    // Handle simulation_details (Python sends 'sim_details' with 'count', 'total', 'details')
+    if (messageType === 'sim_details' || messageType === 'simulation_details') {
+      // Python sends: count, total, details
+      // We store: simulationCount, totalSimulations, currentCase
+      if (message.count !== undefined || message.simulation_count !== undefined) {
+        updateData.simulationCount = message.count ?? message.simulation_count
       }
-      if (message.total_simulations !== undefined) {
-        updateData.totalSimulations = message.total_simulations
+      if (message.total !== undefined || message.total_simulations !== undefined) {
+        updateData.totalSimulations = message.total ?? message.total_simulations
       }
-      if (message.current_case !== undefined) {
-        updateData.currentCase = message.current_case
+      if (message.details !== undefined || message.current_case !== undefined) {
+        updateData.currentCase = message.details ?? message.current_case
       }
     }
 
@@ -465,7 +467,7 @@ export async function POST(request: NextRequest) {
     
     // Broadcast progress updates to SSE clients (non-blocking)
     // Merge updateData with existing guiState to preserve values not being updated
-    if (messageType === 'overall_progress' || messageType === 'stage_progress' || messageType === 'profiler_update' || messageType === 'simulation_details') {
+    if (messageType === 'overall_progress' || messageType === 'stage_progress' || messageType === 'profiler_update' || messageType === 'sim_details' || messageType === 'simulation_details') {
       try {
         // Merge updateData with existing guiState values (updateData only has changed fields)
         broadcastProgress(worker.id, {
