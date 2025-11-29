@@ -336,6 +336,7 @@ export default function WorkerDetail() {
             }
             
             if (data.type === 'logs' && Array.isArray(data.logs)) {
+              console.log(`[SSE] Received ${data.logs.length} log(s) via SSE`)
               // Append new logs to state with deduplication
               setGuiState(prev => {
                 if (!prev) return prev
@@ -387,6 +388,7 @@ export default function WorkerDetail() {
             }
             
             if (data.type === 'progress') {
+              console.log(`[SSE] Received progress update via SSE`)
               // Update progress without full refetch
               setGuiState(prev => {
                 if (!prev) return prev
