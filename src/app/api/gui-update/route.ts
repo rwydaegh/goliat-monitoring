@@ -209,6 +209,9 @@ export async function POST(request: NextRequest) {
     if (messageType === 'log_batch' && message.logs && Array.isArray(message.logs)) {
       const batchSize = message.logs.length
       
+      // Declare newLogs outside transaction so it's accessible for SSE broadcast after transaction completes
+      const newLogs: Array<{message: string, logType: string, timestamp: string, sequence?: number}> = []
+      
       // Use transaction to prevent race conditions when multiple batches arrive concurrently
       try {
         await prisma.$transaction(async (tx) => {
@@ -241,7 +244,9 @@ export async function POST(request: NextRequest) {
           
           // Process each log in the batch
           const batchSequence = message.sequence !== undefined ? message.sequence : -1
-          const newLogs: Array<{message: string, logType: string, timestamp: string, sequence?: number}> = []
+          
+          // Clear newLogs array for this batch (reuse the outer scope variable)
+          newLogs.length = 0
           
           // Build duplicate detection set
           // For parallel batches (with sequence numbers), check all messages to handle out-of-order arrivals
