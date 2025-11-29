@@ -234,18 +234,15 @@ export async function POST(request: NextRequest) {
           const logMessages = Array.isArray(currentGuiState.logMessages) ? [...currentGuiState.logMessages] : []
           const beforeCount = logMessages.length
           
-          // Track warnings and errors from existing logs
-          let warningCount = 0
-          let errorCount = 0
-          logMessages.forEach((log: any) => {
-            const lt = log.logType || 'default'
-            if (lt === 'warning' || lt === 'highlight') warningCount++
-            if (lt === 'error' || lt === 'fatal') errorCount++
-          })
+          // Start with existing counts (don't recalculate from scratch - O(n) is slow!)
+          let warningCount = currentGuiState.warningCount || 0
+          let errorCount = currentGuiState.errorCount || 0
           
-          // Create set of existing message keys for duplicate detection (message + timestamp)
+          // Only check recent messages for duplicates (last 100) - much faster than checking all
+          // This prevents O(n) slowdown as logs grow
+          const recentMessages = logMessages.slice(-100)
           const existingMessageKeys = new Set<string>()
-          logMessages.forEach((log: any) => {
+          recentMessages.forEach((log: any) => {
             const key = `${log.message}|${log.timestamp}`
             existingMessageKeys.add(key)
           })
@@ -278,7 +275,7 @@ export async function POST(request: NextRequest) {
                 timestamp: logTimestamp
               })
               
-              // Update counts
+              // Update counts incrementally
               if (logType === 'warning' || logType === 'highlight') warningCount++
               if (logType === 'error' || logType === 'fatal') errorCount++
             }
